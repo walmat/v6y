@@ -1,0 +1,15 @@
+{
+  "name": "@v6y/metro",
+  "version": "0.0.1",
+  "description": "One-line Metro integration for v6y: withV6y(getDefaultConfig(__dirname))",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "dependencies": {
+    "@v6y/babel-plugin": "0.0.1",
+    "@v6y/cli": "0.0.1",
+    "@v6y/core": "0.0.1"
+  },
+  "peerDependencies": { "@v6y/react-native": "0.0.1" }
+}

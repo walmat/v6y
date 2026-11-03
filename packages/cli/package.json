@@ -1,0 +1,11 @@
+{
+  "name": "@v6y/cli",
+  "version": "0.0.1",
+  "description": "v6y command line: receive snapshots from your app and report accessibility issues",
+  "license": "MIT",
+  "bin": { "v6y": "dist/bin.js" },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "dependencies": { "@v6y/core": "0.0.1" }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@v6y/babel-plugin",
+  "version": "0.0.1",
+  "description": "Stamps JSX elements with source locations so v6y can point issues at file:line",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "peerDependencies": { "@babel/core": "^7.0.0" }
+}

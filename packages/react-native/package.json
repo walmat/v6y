@@ -1,0 +1,25 @@
+{
+  "name": "@v6y/react-native",
+  "version": "0.0.1",
+  "description": "Dev-only runtime that snapshots what your React Native screens expose to screen readers",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "auto.js",
+    "project-config.js"
+  ],
+  "dependencies": {
+    "@v6y/core": "0.0.1"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-native": ">=0.72"
+  },
+  "peerDependenciesMeta": {
+    "react-native": {
+      "optional": true
+    }
+  }
+}

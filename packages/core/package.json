@@ -1,0 +1,9 @@
+{
+  "name": "@v6y/core",
+  "version": "0.0.1",
+  "description": "Platform-neutral accessibility rules engine for v6y",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"]
+}

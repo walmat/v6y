@@ -25,6 +25,7 @@ describe('the v6y package', () => {
     expect(typeof req(path.join(pkg, 'metro.js')).withV6y).toBe('function');
     expect(typeof req(path.join(pkg, 'babel.js'))).toBe('function');
     expect(req(path.join(pkg, 'project-config.js'))).toEqual({});
+    expect(typeof req(path.join(pkg, 'jest.js')).toBeAccessible).toBe('function');
   });
 
   it('uses public names wherever apps or users see them', () => {

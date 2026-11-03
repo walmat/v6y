@@ -8,10 +8,12 @@
   "files": [
     "dist",
     "auto.js",
-    "project-config.js"
+    "project-config.js",
+    "jest.js"
   ],
   "dependencies": {
-    "@v6y/core": "0.0.1"
+    "@v6y/core": "0.0.1",
+    "@v6y/cli": "0.0.1"
   },
   "peerDependencies": {
     "react": ">=18",

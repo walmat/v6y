@@ -400,6 +400,18 @@ export async function collect(rootFiber: Fiber, options: CollectOptions = {}): P
   return { root };
 }
 
+/**
+ * For tests without a layout engine (Jest): frames from explicit width/height
+ * (or minWidth/minHeight) styles. Elements sized by padding get no frame, so
+ * touch-target checks skip them rather than guess.
+ */
+export async function measureFromStyle(stateNode: any): Promise<Frame | undefined> {
+  const style = flattenStyle(stateNode?.props?.style);
+  const width = style.width ?? style.minWidth;
+  const height = style.height ?? style.minHeight;
+  return typeof width === 'number' && typeof height === 'number' ? { x: 0, y: 0, width, height } : undefined;
+}
+
 /** measureInWindow across the old (Paper) and new (Fabric) architectures. */
 export function defaultMeasure(stateNode: any): Promise<Frame | undefined> {
   return new Promise((resolve) => {

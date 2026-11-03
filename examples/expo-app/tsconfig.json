@@ -12,7 +12,8 @@
     },
     "types": [
       "jest",
-      "node"
+      "node",
+      "v6y/jest"
     ]
   },
   "include": [

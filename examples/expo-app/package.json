@@ -52,7 +52,11 @@
       "^react$": "<rootDir>/node_modules/react",
       "^react/(.*)$": "<rootDir>/node_modules/react/$1",
       "^react-native$": "<rootDir>/node_modules/react-native",
-      "^@babel/runtime/(.*)$": "<rootDir>/node_modules/@babel/runtime/$1"
-    }
+      "^@babel/runtime/(.*)$": "<rootDir>/node_modules/@babel/runtime/$1",
+      "^react-test-renderer$": "<rootDir>/node_modules/react-test-renderer"
+    },
+    "setupFilesAfterEnv": [
+      "v6y/jest"
+    ]
   }
 }

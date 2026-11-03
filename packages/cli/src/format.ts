@@ -26,7 +26,14 @@ function formatSites(sites: SourceLocation[]): string {
  * (a shared component, a list item) collapse into one entry with a count and
  * their call sites. `file:line:col` is clickable in most terminals and editors.
  */
-export function formatIssues(issues: Issue[], { screenHeadings = true } = {}): string {
+export function formatIssues(
+  issues: Issue[],
+  {
+    screenHeadings = true,
+    /** Word before each location. Test runners treat lines starting with "at " as stack frames. */
+    locationWord = 'at',
+  } = {},
+): string {
   if (!issues.length) return green('✓ No accessibility issues found.');
   const out: string[] = [];
   const byScreen = new Map<string, Issue[]>();
@@ -44,7 +51,7 @@ export function formatIssues(issues: Issue[], { screenHeadings = true } = {}): s
         ? cyan(`${at.file}:${at.line}:${at.column}`) + (i.via ? dim(` via ${i.via.file}:${i.via.line}`) : '')
         : dim('(no source: is withV6y() in metro.config.js?)');
       out.push(`  ${icon}${times} ${i.message}`);
-      out.push(`    ${dim('at')} ${where} ${dim(`[${i.ruleId}, WCAG ${i.wcag.join(', ')}]`)}`);
+      out.push(`    ${dim(locationWord)} ${where} ${dim(`[${i.ruleId}, WCAG ${i.wcag.join(', ')}]`)}`);
       if (i.scope === 'component') out.push(`    ${dim('inside this shared component; fix it once. Used at')} ${formatSites(usedAt)}`);
       else if (usedAt.length) out.push(`    ${dim('used at')} ${formatSites(usedAt)}`);
       if (i.fix) out.push(`    ${green('fix:')} ${i.fix}`);

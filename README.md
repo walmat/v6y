@@ -44,6 +44,34 @@ In development builds, `withV6y` does four things:
 
 Without Metro integration, add the Babel plugin (`v6y/babel`) yourself, put `import 'v6y/auto'` at the top of your entry file, and run `npx v6y dev`.
 
+## In your tests
+
+No device needed: assert on any screen in Jest, with the same rules and config.
+
+```js
+// jest config
+setupFilesAfterEnv: ['v6y/jest'],
+```
+
+```tsx
+await expect(render(<Checkout />)).toBeAccessible();   // React Native Testing Library
+await expect(<Checkout />).toBeAccessible();           // or just an element
+await expect(<Checkout />).toBeAccessible({ failOn: 'warning', screen: 'Checkout' });
+```
+
+A failure lists every issue with its `file:line` and fix:
+
+```
+v6y found 9 accessibility issues:
+  ✖ error   ×3 Pressable has role "radio" but doesn't expose whether it's checked.
+    in src/screens/product/Before.tsx:32:11 [state-not-exposed, WCAG 4.1.2]
+    fix: Add accessibilityState={{ checked: … }} (or aria-checked).
+```
+
+- **Locations:** add the Babel plugin to your test config, `env: { test: { plugins: ['v6y/babel'] } }`.
+- **Types:** add `"v6y/jest"` to `compilerOptions.types` in `tsconfig.json`.
+- **Limits:** tests have no layout engine, so touch-target sizes are only checked where you set an explicit `width`/`height`.
+
 ## Configuration: `v6y.config.ts`
 
 ```ts
@@ -134,6 +162,7 @@ One install, `v6y`, with these entry points:
 | `v6y/metro` | `withV6y()` for `metro.config.js` |
 | `v6y/react-native` | `<V6yProvider>`, `capture()`, `trackNavigation()`: walks the live React tree, audits, reports |
 | `v6y/babel` | The Babel plugin: `file:line` stamps and `v6y-ignore` comments |
+| `v6y/jest` | `expect(…).toBeAccessible()` for Jest and Vitest |
 | `npx v6y` | The `init`, `rules`, `check` and `dev` commands |
 
 In this repository they're developed as separate workspace packages under `packages/` and bundled into `packages/v6y` by `npm run build`.

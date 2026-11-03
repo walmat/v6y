@@ -8,6 +8,7 @@ import {
   auditScreen,
   defineConfig,
   globToRegExp,
+  groupIssues,
   presets,
   resolveConfig,
   shouldFail,
@@ -204,6 +205,16 @@ describe('field-test fixes', () => {
     const three = audit(screen(node({ children: [at(1), at(2), at(3), fine] })));
     expect(three.map((i) => i.location?.line)).toEqual([1, 2, 3]);
     expect(three.every((i) => i.via?.file === 'src/Button.tsx' && i.scope === 'call-site')).toBe(true);
+  });
+
+  it('only lists "used at" for uses in another file', () => {
+    const inScreen = node({ interactive: true, role: 'button', frame: frame(48, 48), source: src('src/Home.tsx', 20), ownerSources: [src('src/Home.tsx', 5)] });
+    const elsewhere = node({ interactive: true, role: 'button', frame: frame(48, 48), source: src('src/IconButton.tsx', 9), ownerSources: [src('src/Home.tsx', 30)] });
+    const groups = groupIssues(audit(screen(node({ children: [inScreen, elsewhere] }))));
+    expect(groups.map((g) => [g.issue.source?.file, g.usedAt.map((u) => u.file)])).toEqual([
+      ['src/Home.tsx', []],
+      ['src/IconButton.tsx', ['src/Home.tsx']],
+    ]);
   });
 
   it('reports a defect every use shares once, at the component, with its call sites', () => {

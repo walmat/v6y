@@ -190,8 +190,10 @@ export function groupIssues(issues: Issue[]): IssueGroup[] {
     let g = groups.get(key);
     if (!g) groups.set(key, (g = { issue: i, count: 0, usedAt: [] }));
     g.count++;
-    // Issues already moved to their call site don't need a "used at" list.
-    const sites = i.callSites ?? (i.via || !i.ownerSources?.[0] ? [] : [i.ownerSources[0]]);
+    // Issues already moved to their call site don't need a "used at" list, and an
+    // element's own file (a Text inside the screen's ScrollView) isn't a "use".
+    const owner = i.ownerSources?.[0];
+    const sites = i.callSites ?? (i.via || !owner || owner.file === i.source?.file ? [] : [owner]);
     for (const site of sites) if (!g.usedAt.some((u) => loc(u) === loc(site))) g.usedAt.push(site);
   }
   return [...groups.values()];

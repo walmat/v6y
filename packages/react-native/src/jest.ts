@@ -105,9 +105,24 @@ export async function auditRendered(received: unknown, options: AccessibleOption
   }
 }
 
+/**
+ * With V6Y_SNAPSHOTS=<dir> set (e.g. in CI), every assertion also saves its
+ * snapshot there, so `v6y check --changed` can report on the files a PR touched.
+ */
+function record(snapshot: ScreenSnapshot) {
+  const dir = process.env.V6Y_SNAPSHOTS;
+  if (!dir) return;
+  fs.mkdirSync(dir, { recursive: true });
+  const name = snapshot.screen.replace(/[^\w.-]+/g, '_').slice(0, 120);
+  fs.writeFileSync(path.join(dir, `${name}.${snapshot.platform}.json`), JSON.stringify(snapshot, null, 2));
+}
+
 /** The matcher implementation (exported so other test runners can register it). */
 export async function toBeAccessible(this: any, received: unknown, options: AccessibleOptions = {}) {
-  const result = await auditRendered(received, options);
+  const screen = options.screen ?? this?.currentTestName ?? undefined;
+  const result = await auditRendered(received, { ...options, screen });
+  result.snapshot.capturedAt = new Date().toISOString();
+  record(result.snapshot);
   const failOn = options.failOn ?? resolveConfig(options.config ?? loadProjectConfig()).failOn;
   const pass = !shouldFail(result.issues, { failOn });
   const counted = result.issues.filter((i) => failOn === 'warning' || i.severity === 'error');

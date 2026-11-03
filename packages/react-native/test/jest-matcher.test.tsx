@@ -57,3 +57,22 @@ describe('toBeAccessible', () => {
     await expect(auditRendered({ nope: true }, { config })).rejects.toThrow(/expects a React element/);
   });
 });
+
+describe('recording snapshots for CI', () => {
+  it('saves each assertion when V6Y_SNAPSHOTS is set, named after the test', async () => {
+    const fs = await import('fs');
+    const os = await import('os');
+    const path = await import('path');
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v6y-snaps-'));
+    process.env.V6Y_SNAPSHOTS = dir;
+    try {
+      await (expect(h(IconButton, { accessibilityRole: 'button', accessibilityLabel: 'Search' })) as any).toBeAccessible({ config, platform: 'ios' });
+    } finally {
+      delete process.env.V6Y_SNAPSHOTS;
+    }
+    const [file] = fs.readdirSync(dir);
+    expect(file).toMatch(/saves_each_assertion.*\.ios\.json$/);
+    const snap = JSON.parse(fs.readFileSync(path.join(dir, file!), 'utf8'));
+    expect(snap.capturedAt).toBeTruthy();
+  });
+});

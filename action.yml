@@ -1,0 +1,42 @@
+name: v6y accessibility check
+description: Annotate a pull request's changed lines with React Native accessibility issues found by v6y.
+author: walmat
+branding:
+  icon: eye
+  color: purple
+
+inputs:
+  snapshots:
+    description: Glob of v6y snapshot files to check (recorded by your tests with V6Y_SNAPSHOTS, or by the running app).
+    default: .v6y/snapshots/*.json
+  working-directory:
+    description: Directory of the React Native project (where v6y is installed and v6y.config lives).
+    default: .
+  changed-only:
+    description: On pull requests, only report issues in files the PR changes.
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - name: v6y check
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        # Inputs go through the environment, never straight into the script.
+        V6Y_SNAPSHOT_GLOB: ${{ inputs.snapshots }}
+        V6Y_CHANGED_ONLY: ${{ inputs.changed-only }}
+        V6Y_BASE_REF: ${{ github.base_ref }}
+      run: |
+        shopt -s nullglob globstar
+        files=( $V6Y_SNAPSHOT_GLOB )
+        if [ ${#files[@]} -eq 0 ]; then
+          echo "::warning title=v6y::No snapshots matched '$V6Y_SNAPSHOT_GLOB'. Run your tests with V6Y_SNAPSHOTS=.v6y/snapshots first."
+          exit 0
+        fi
+        args=(--format github)
+        if [ "$V6Y_CHANGED_ONLY" = "true" ] && [ -n "$V6Y_BASE_REF" ]; then
+          git fetch --no-tags --quiet origin "$V6Y_BASE_REF" || true
+          args+=(--base "origin/$V6Y_BASE_REF")
+        fi
+        npx --no-install v6y check "${files[@]}" "${args[@]}"

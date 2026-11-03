@@ -3,7 +3,8 @@ import http from 'http';
 import path from 'path';
 import { pathToFileURL } from 'url';
 import { createRequire } from 'module';
-import { execFile } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
+import { ChangedOptions, changedFiles, coverage, githubAnnotations, issueFiles, touchesChange } from './changed';
 import {
   Issue,
   ScreenSnapshot,
@@ -11,13 +12,15 @@ import {
   V6yConfig,
   allRules,
   auditScreen,
+  groupIssues,
   presets,
   resolveConfig,
   shouldFail,
 } from '@v6y/core';
-import { bold, dim, formatIssues } from './format';
+import { bold, dim, formatIssues, yellow } from './format';
 
 export { formatIssues } from './format';
+export * from './changed';
 
 export const DEFAULT_PORT = 8973;
 export const CONFIG_FILES = ['v6y.config.ts', 'v6y.config.mts', 'v6y.config.js', 'v6y.config.mjs', 'v6y.config.cjs', 'v6y.config.json'];
@@ -92,27 +95,81 @@ export function snapshotFrom(value: unknown): ScreenSnapshot | undefined {
   return r && isSnapshot(r.snapshot) ? r.snapshot : undefined;
 }
 
+export interface CheckOptions {
+  /** Print issues as JSON instead of text. */
+  json?: boolean;
+  /** "github": also emit workflow annotations so issues show on the PR's lines. */
+  format?: 'text' | 'json' | 'github';
+  cwd?: string;
+  /** Only issues touching changed files (and warn about stale or missing snapshots). */
+  changed?: ChangedOptions | boolean;
+}
+
 /** `v6y check <files…>`: re-audits saved snapshots with the project config. Returns the exit code. */
-export async function check(files: string[], { json = false, cwd = process.cwd() } = {}): Promise<number> {
+export async function check(files: string[], options: CheckOptions = {}): Promise<number> {
+  const cwd = options.cwd ?? process.cwd();
+  const format = options.format ?? (options.json ? 'json' : 'text');
   const config = resolveConfig(await loadConfig(cwd));
-  const issues: Issue[] = [];
-  let suppressed = 0;
+  const snapshots: ScreenSnapshot[] = [];
   for (const f of files) {
     const data = JSON.parse(fs.readFileSync(f, 'utf8'));
     for (const item of Array.isArray(data) ? data : [data]) {
       const snapshot = snapshotFrom(item);
       if (!snapshot) throw new Error(`${f}: not a v6y snapshot`);
-      const r = auditScreen(snapshot, config);
-      issues.push(...r.issues);
-      suppressed += r.suppressed.length;
+      snapshots.push(snapshot);
     }
   }
-  if (json) console.log(JSON.stringify(issues, null, 2));
-  else {
+  const change = options.changed ? changedFiles(cwd, options.changed === true ? {} : options.changed) : undefined;
+  const cover = change ? coverage(snapshots, change, cwd) : undefined;
+  const staleFiles = new Map(cover?.stale.map((s) => [s.screen, new Set(s.files)]));
+
+  let issues: Issue[] = [];
+  let suppressed = 0;
+  let skippedStale = 0;
+  for (const snapshot of snapshots) {
+    const r = auditScreen(snapshot, config);
+    suppressed += r.suppressed.length;
+    // A file edited after this snapshot was taken: its line numbers can't be trusted.
+    const stale = staleFiles.get(snapshot.screen);
+    for (const i of r.issues) {
+      if (stale && issueFiles(i).some((f) => stale.has(f))) skippedStale++;
+      else issues.push(i);
+    }
+  }
+  const total = issues.length;
+  if (change) issues = issues.filter((i) => touchesChange(i, change));
+
+  if (format === 'json') {
+    console.log(JSON.stringify(issues, null, 2));
+  } else {
+    if (format === 'github') {
+      for (const line of githubAnnotations(groupIssues(issues).map((g) => g.issue), change?.prefix ?? gitPrefix(cwd))) console.log(line);
+    }
+    if (change) {
+      console.log(dim(`Checking ${change.description}: ${change.files.size} changed file${change.files.size === 1 ? '' : 's'}, ${issues.length} of ${total} issues touch them.`));
+    }
     console.log(formatIssues(issues));
     if (suppressed) console.log(dim(`${suppressed} suppressed by v6y-ignore comments or config.`));
+    if (change && cover) {
+      const { stale, uncovered } = cover;
+      for (const s of stale) {
+        console.log(yellow(`⚠ Snapshot "${s.screen}" is older than your edits to ${s.files.join(', ')}. Re-open that screen or re-run its test.`));
+      }
+      if (skippedStale) console.log(dim(`${skippedStale} issue${skippedStale === 1 ? '' : 's'} from stale snapshots skipped (their line numbers are out of date).`));
+      if (uncovered.length) {
+        console.log(yellow(`⚠ No snapshot renders ${uncovered.join(', ')}. Open those screens in the app or add a toBeAccessible() test.`));
+      }
+    }
   }
   return shouldFail(issues, config) ? 1 : 0;
+}
+
+function gitPrefix(cwd: string): string {
+  try {
+    return execFileSync('git', ['rev-parse', '--show-prefix'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return '';
+  }
 }
 
 /** Prints and saves one report. Shared by `v6y dev` and the Metro middleware. */

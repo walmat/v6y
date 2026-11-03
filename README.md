@@ -146,11 +146,39 @@ The comment applies to the next element and everything it renders. Leave out rul
 | `text-contrast`: 4.5:1, or 3:1 for large text; suggests a text color and a background | error | error | error | error | 1.4.3 | `level: 'AA' \| 'AAA'` |
 | `font-scaling-disabled`: `allowFontScaling={false}`, or a cap under 2× | error | error | error | error | 1.4.4 | `minMultiplier` |
 
-## CI
+## CI and pre-commit
+
+Run your tests with `V6Y_SNAPSHOTS` set, so every `toBeAccessible()` also records what it audited. Then check only what the change touched:
+
+```yaml
+# .github/workflows/a11y.yml
+on: pull_request
+jobs:
+  v6y:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: npm ci
+      - run: npx jest
+        env: { V6Y_SNAPSHOTS: .v6y/snapshots }
+      - uses: walmat/v6y@main   # annotates the PR's changed lines
+```
+
+Issues appear as annotations on the lines the pull request changed, matched on where each issue is reported, the shared component it came through, or any of its call sites.
+
+The same check runs anywhere:
 
 ```sh
-npx v6y check .v6y/snapshots/*.json    # re-audits with v6y.config.ts; exit code follows failOn
+npx v6y check .v6y/snapshots/*.json --changed            # uncommitted changes
+npx v6y check .v6y/snapshots/*.json --staged             # pre-commit hook (husky, lefthook…)
+npx v6y check .v6y/snapshots/*.json --base origin/main   # a branch
+npx v6y check .v6y/snapshots/*.json                      # everything; exit code follows failOn
 ```
+
+With `--changed`, v6y also warns when a snapshot is older than your edits, and skips that snapshot's issues for those files, since its line numbers are out of date. It also lists changed screen files that no snapshot renders.
 
 ## What's in the package
 

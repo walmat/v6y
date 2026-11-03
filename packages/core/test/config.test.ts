@@ -176,6 +176,18 @@ describe('field-test fixes', () => {
     expect(ids(screen(node({ children: [heading(), ...rows] })), withRows)).toHaveLength(3);
   });
 
+  it('duplicate-label still catches different uses of one shared component', () => {
+    // Three segmented controls on one screen, each rendered through the same component line.
+    const seg = (screenLine: number) =>
+      btn('Dark', src('src/components/Button.tsx', 577), src('src/components/SegmentedControl.tsx', 199));
+    const nodes = [221, 250].map((line) => {
+      const n = seg(line);
+      n.ownerSources = [...(n.ownerSources ?? []), src('src/screens/Appearance.tsx', line)];
+      return n;
+    });
+    expect(ids(screen(node({ children: [heading(), ...nodes] })), { extends: 'strict' })).toEqual(['duplicate-label', 'duplicate-label']);
+  });
+
   it('reports issues inside a shared component at the call site (designSystem config)', () => {
     const s = screen(node({ children: [node({ interactive: true, frame: frame(48, 48), label: 'Go', source: src('src/components/Button.tsx', 9), ownerSources: [src('src/screens/Home.tsx', 42)] })] }));
     const [issue] = audit(s, { rules: { 'missing-role': 'error' }, designSystem: ['src/components/**'] });

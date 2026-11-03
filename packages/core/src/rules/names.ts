@@ -180,8 +180,11 @@ export const duplicateLabel = defineRule<DuplicateLabelOptions>({
       groups.set(key, [...(groups.get(key) ?? []), n]);
     }
     const findings: ScreenFinding[] = [];
+    // Rows rendered by one .map()/list share their whole chain of callers; separate uses of a
+    // shared component (three SegmentedControls) differ somewhere up the chain.
     // Without source info we can't tell repeats apart, so each node counts as its own call site.
-    const callSite = (n: A11yNode) => (n.source ? `${loc(n.source)}|${loc(n.ownerSources?.[0])}` : n.id);
+    const callSite = (n: A11yNode) =>
+      n.source ? [n.source, ...(n.ownerSources ?? [])].map(loc).join('>') : n.id;
     for (const all of groups.values()) {
       // One representative per call site unless repeats are wanted: N list rows are one thing.
       const nodes = options.includeRepeated

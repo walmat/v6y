@@ -34,6 +34,10 @@ runs:
           echo "::warning title=v6y::No snapshots matched '$V6Y_SNAPSHOT_GLOB'. Run your tests with V6Y_SNAPSHOTS=.v6y/snapshots first."
           exit 0
         fi
+        if [ ! -x node_modules/.bin/v6y ]; then
+          echo "::error title=v6y::v6y isn't installed in $(pwd). Add it as a devDependency (npm i -D v6y) and run npm ci before this step."
+          exit 1
+        fi
         args=(--format github)
         if [ "$V6Y_CHANGED_ONLY" = "true" ] && [ -n "$V6Y_BASE_REF" ]; then
           git fetch --no-tags --quiet origin "$V6Y_BASE_REF" || true

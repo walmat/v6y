@@ -34,7 +34,8 @@
   "devDependencies": {
     "@types/react": "~19.3.0",
     "react-test-renderer": "19.3.0",
-    "typescript": "~6.0.3"
+    "typescript": "~6.0.3",
+    "v6y": "file:../../packages/v6y"
   },
   "scripts": {
     "start": "expo start",

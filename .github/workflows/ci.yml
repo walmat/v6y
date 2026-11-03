@@ -10,8 +10,8 @@ jobs:
     name: Packages
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -22,10 +22,10 @@ jobs:
     name: Example app
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0 # so --changed can find the merge base
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 24
           cache: npm
@@ -43,6 +43,7 @@ jobs:
       # Dogfooding the action. The example's "before" screens are broken on purpose,
       # so this annotates PRs that touch them without failing the build.
       - name: v6y on changed files
+        if: github.event_name == 'pull_request'
         uses: ./
         continue-on-error: true
         with:

@@ -1,4 +1,4 @@
-import { Issue, SourceLocation, groupIssues } from '@v6y/core';
+import { Issue, SourceLocation, groupIssues, ruleDocsUrl } from '@v6y/core';
 
 const useColor = !process.env.NO_COLOR && process.stdout.isTTY;
 const c = (code: number) => (s: string) => (useColor ? `\x1b[${code}m${s}\x1b[0m` : s);
@@ -55,6 +55,7 @@ export function formatIssues(
       if (i.scope === 'component') out.push(`    ${dim('inside this shared component; fix it once. Used at')} ${formatSites(usedAt)}`);
       else if (usedAt.length) out.push(`    ${dim('used at')} ${formatSites(usedAt)}`);
       if (i.fix) out.push(`    ${green('fix:')} ${i.fix}`);
+      out.push(`    ${dim(`docs: ${ruleDocsUrl(i.ruleId)}`)}`);
     }
   }
   const errors = issues.filter((i) => i.severity === 'error').length;

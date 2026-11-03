@@ -129,7 +129,7 @@ The comment applies to the next element and everything it renders. Leave out rul
 
 ## Rules
 
-`npx v6y rules` prints this table from the code.
+`npx v6y rules` prints this table from the code. Each rule has a page with why it matters, before/after code and its options: **[rule reference](./docs/rules/README.md)**. Every reported issue links to its page.
 
 | Rule | recommended | strict | wcag21-aa | wcag22-aa | WCAG | Options |
 |---|---|---|---|---|---|---|

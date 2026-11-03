@@ -5,7 +5,7 @@
 import fs from 'fs';
 import path from 'path';
 import { execFileSync } from 'child_process';
-import { A11yNode, Issue, ScreenSnapshot, SourceLocation } from '@v6y/core';
+import { A11yNode, Issue, ScreenSnapshot, SourceLocation, ruleDocsUrl } from '@v6y/core';
 
 export interface ChangedOptions {
   /** Compare against this ref (e.g. origin/main). Default: uncommitted changes vs HEAD. */
@@ -120,7 +120,7 @@ export function githubAnnotations(issues: Issue[], prefix: string): string[] {
       const at = (i.location ?? i.source)!;
       const level = i.severity === 'error' ? 'error' : 'warning';
       const title = `v6y ${i.ruleId} (WCAG ${i.wcag.join(', ')})`;
-      const body = i.fix ? `${i.message}\n\nFix: ${i.fix}` : i.message;
+      const body = `${i.message}${i.fix ? `\n\nFix: ${i.fix}` : ''}\n\nDocs: ${ruleDocsUrl(i.ruleId)}`;
       return `::${level} file=${escProp(prefix + at.file)},line=${at.line},col=${at.column},title=${escProp(title)}::${esc(body)}`;
     });
 }

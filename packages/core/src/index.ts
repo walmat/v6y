@@ -6,3 +6,4 @@ export * from './rule';
 export * from './rules';
 export * from './config';
 export * from './engine';
+export * from './docs';

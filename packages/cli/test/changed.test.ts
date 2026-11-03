@@ -118,6 +118,6 @@ describe('check --changed', () => {
       [{ ruleId: 'r', severity: 'warning', message: 'a,b: 100%\nnext', wcag: ['1.1.1'], screen: 's', nodeId: '1', source: { file: 'a,b.tsx', line: 1, column: 1 } }],
       '',
     );
-    expect(line).toBe('::warning file=a%2Cb.tsx,line=1,col=1,title=v6y r (WCAG 1.1.1)::a,b: 100%25%0Anext');
+    expect(line).toBe('::warning file=a%2Cb.tsx,line=1,col=1,title=v6y r (WCAG 1.1.1)::a,b: 100%25%0Anext%0A%0ADocs: https://github.com/walmat/v6y/blob/main/docs/rules/r.md');
   });
 });

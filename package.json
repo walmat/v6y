@@ -14,7 +14,8 @@
   "scripts": {
     "build": "tsc -b packages/core packages/babel-plugin packages/react-native packages/cli packages/metro && node packages/v6y/scripts/bundle.mjs",
     "test": "npm run build && vitest run",
-    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo"
+    "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo",
+    "docs": "npm run build && node scripts/gen-docs.mjs"
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",

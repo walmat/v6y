@@ -59,3 +59,4 @@ export const allRules: Rule<any>[] = [
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const rulesById: Record<RuleId, Rule<any>> = Object.fromEntries(allRules.map((r) => [r.meta.id, r])) as never;
+export * from './examples';

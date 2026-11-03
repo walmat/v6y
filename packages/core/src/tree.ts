@@ -1,7 +1,7 @@
 import { A11yNode } from './types';
 import { RGBA, blend, parseColor } from './color';
 
-const TEXT_TYPES = new Set(['RCTText', 'RCTVirtualText', 'AndroidText', 'Text']);
+const TEXT_TYPES = new Set(['RCTText', 'RCTVirtualText', 'AndroidText', 'Text', 'RNUITextView', 'RNUITextViewChild']);
 const INPUT_TYPES = /TextInput|TextField|RCTMultilineTextInputView|RCTSinglelineTextInputView/;
 const SWITCH_TYPES = /Switch/;
 const SLIDER_TYPES = /Slider/;
@@ -9,20 +9,21 @@ const SLIDER_TYPES = /Slider/;
 const IMAGE_TYPES = /Image|FastImage|RNSVGSvgView|ExpoImage/;
 
 export function isText(node: A11yNode): boolean {
-  return TEXT_TYPES.has(node.type);
+  return node.kind ? node.kind === 'text' : TEXT_TYPES.has(node.type);
 }
 
 export function isTextInput(node: A11yNode): boolean {
-  return INPUT_TYPES.test(node.type);
+  return node.kind ? node.kind === 'input' : INPUT_TYPES.test(node.type);
 }
 
 export function isImage(node: A11yNode): boolean {
-  return IMAGE_TYPES.test(node.type) || node.role === 'image' || node.role === 'img';
+  if (node.role === 'image' || node.role === 'img') return true;
+  return node.kind ? node.kind === 'image' : IMAGE_TYPES.test(node.type);
 }
 
 /** Native controls that carry their own role and name semantics. */
 export function hasIntrinsicRole(node: A11yNode): boolean {
-  return INPUT_TYPES.test(node.type) || SWITCH_TYPES.test(node.type) || SLIDER_TYPES.test(node.type);
+  return isTextInput(node) || SWITCH_TYPES.test(node.type) || SLIDER_TYPES.test(node.type);
 }
 
 // Icon fonts (Ionicons, MaterialIcons, FontAwesome, …) draw glyphs from the
@@ -32,6 +33,11 @@ const PRIVATE_USE = /[\uE000-\uF8FF]|[\uDB80-\uDBFF][\uDC00-\uDFFF]/g;
 /** Text a screen reader can actually speak: icon-font glyphs removed. */
 export function speakableText(text: string | undefined): string {
   return (text ?? '').replace(PRIVATE_USE, '').trim();
+}
+
+/** True when a node or its descendants contain text a screen reader would speak (not just icon glyphs). */
+export function hasSpeakableText(node: A11yNode): boolean {
+  return !!speakableText(node.text) || node.children.some(hasSpeakableText);
 }
 
 /**

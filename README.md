@@ -61,6 +61,8 @@ export default defineConfig({
   screens: { ignore: ['Storybook*'] },
   failOn: 'error',                   // what fails `v6y check` in CI: 'error' | 'warning' | 'never'
   capture: { delayMs: 800 },         // wait for screens to settle before auditing
+  designSystem: ['src/components/**'], // report issues inside shared components at the call site
+  hostTypes: { text: ['MySelectableText'], modal: ['MyBottomSheet'] }, // your own native views
 });
 ```
 
@@ -74,6 +76,16 @@ The config is typed and validated. A typo like `'missing-lable'` or an unknown o
 | `strict` | Everything on, with heuristic rules as warnings. |
 | `wcag21-aa` | You need WCAG 2.1 AA, the standard behind the **EU Accessibility Act** (via EN 301 549) and **US ADA Title II**. Requirements only, no platform guidelines. |
 | `wcag22-aa` | WCAG 2.2 AA (adds the 24×24 touch-target minimum). |
+
+### Shared components and where issues are reported
+
+An issue inside a shared component, like the `Pressable` in your design system's `Button`, is reported **at the call site** in your screen, "via" the component. That's where PR comments need to land. v6y does this automatically once the same issue comes from 3 or more call sites. Name your shared components with `designSystem` to make it explicit.
+
+### What v6y understands
+
+- **Modals:** while a `Modal`, sheet or `accessibilityViewIsModal` view is open, only it is audited, the way screen readers treat it.
+- **Icon fonts** (`@expo/vector-icons` and similar) aren't text, so they never count as a button's name.
+- **`onClick`-only wrapper Views** aren't controls.
 
 ### Silencing one element
 
@@ -97,7 +109,7 @@ The comment applies to the next element and everything it renders. Leave out rul
 | `meaningless-label`: "button", "icon_23", "close.png" … | warn | warn | warn | warn | 2.4.6 | `allow`, `generic` |
 | `image-missing-label`: focusable image with no description | error | error | error | error | 1.1.1 | — |
 | `input-missing-label`: text field labelled only by its placeholder | warn | error | error | error | 3.3.2, 4.1.2 | `allowPlaceholder` |
-| `duplicate-label`: several controls announced the same | — | warn | warn | warn | 2.4.6 | `ignoreCase` |
+| `duplicate-label`: different controls announced the same (repeats within one list aren't flagged) | — | warn | warn | warn | 2.4.6 | `ignoreCase`, `includeRepeated` |
 | `missing-role`: pressable not announced as a button or link | warn | error | error | error | 4.1.2 | — |
 | `nested-interactive`: pressable inside a pressable | error | error | error | error | 4.1.2 | — |
 | `state-not-exposed`: checkbox/switch/tab without checked/selected | error | error | error | error | 4.1.2 | — |

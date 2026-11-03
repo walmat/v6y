@@ -111,6 +111,18 @@ describe('init and rules', () => {
 });
 
 describe('formatIssues', () => {
+  it('shows the call site with the shared component it came through', () => {
+    const out = formatIssues([
+      {
+        ruleId: 'missing-role', severity: 'error', message: 'm', wcag: ['4.1.2'], screen: 'Home', nodeId: '1',
+        source: { file: 'src/components/Button.tsx', line: 9, column: 3 },
+        location: { file: 'src/screens/Home.tsx', line: 42, column: 7 },
+        via: { file: 'src/components/Button.tsx', line: 9, column: 3 },
+      },
+    ]);
+    expect(out).toContain('src/screens/Home.tsx:42:7 via src/components/Button.tsx:9');
+  });
+
   it('says so when clean', () => {
     expect(formatIssues([])).toMatch(/No accessibility issues/);
   });

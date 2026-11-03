@@ -41,7 +41,8 @@ jest.mock('@expo/vector-icons', () => {
   const { createElement } = require('react');
   const { Text } = require('react-native');
   const Ionicons = ({ size, color }: { size: number; color: string }) =>
-    createElement(Text, { style: { fontSize: size, color, fontFamily: 'ionicons' } }, '\uf3a1');
+    // Like the real library: a glyph with font scaling turned off.
+    createElement(Text, { allowFontScaling: false, style: { fontSize: size, color, fontFamily: 'ionicons' } }, '\uf3a1');
   Ionicons.glyphMap = {};
   return { Ionicons };
 });
@@ -91,7 +92,6 @@ const SCREENS: ScreenCase[] = [
       'touch-target-size': 2, // IconButton ×2 (32×32 < 44, advisory)
       'text-contrast': 1, // delivery note
       'nested-interactive': 3, // favorite inside each card
-      'duplicate-label': 6, // "Favorite" ×3, "Add" ×3
     },
     suppressed: 4, // LegacyPromoBanner: contrast + close button (label, role, size)
   },
@@ -117,6 +117,7 @@ const SCREENS: ScreenCase[] = [
     after: OrderAfter,
     header: 'Order',
     expected: {
+      'duplicate-label': 2, // two different "Edit" buttons
       'input-missing-label': 2,
       'state-not-exposed': 1, // custom "Leave at door" switch
       'font-scaling-disabled': 1, // maxFontSizeMultiplier 1.3

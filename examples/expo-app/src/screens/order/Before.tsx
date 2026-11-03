@@ -17,6 +17,20 @@ export default function OrderBefore() {
         <Text style={styles.item}>{formatPrice(5)}</Text>
       </View>
 
+      {/* ✖ duplicate-label ×2: two different "Edit" buttons. Edit what? */}
+      <View style={styles.line}>
+        <Text style={styles.detail}>Deliver to 12 Elm St</Text>
+        <Pressable accessibilityRole="button" onPress={() => {}} style={styles.edit}>
+          <Text style={styles.editText}>Edit</Text>
+        </Pressable>
+      </View>
+      <View style={styles.line}>
+        <Text style={styles.detail}>Visa •••• 4242</Text>
+        <Pressable accessibilityRole="button" onPress={() => {}} style={styles.edit}>
+          <Text style={styles.editText}>Edit</Text>
+        </Pressable>
+      </View>
+
       {/* ✖ input-missing-label ×2: the placeholder is the only label, and it vanishes once you type */}
       <TextInput placeholder="Name" style={styles.input} />
       <TextInput placeholder="Email" keyboardType="email-address" autoCapitalize="none" style={styles.input} />
@@ -47,7 +61,10 @@ export default function OrderBefore() {
 
 const styles = StyleSheet.create({
   content: { padding: 16, gap: 12 },
-  line: { flexDirection: 'row', justifyContent: 'space-between' },
+  line: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  detail: { color: colors.secondaryText, fontSize: 15 },
+  edit: { minWidth: 48, height: 48, alignItems: 'flex-end', justifyContent: 'center' },
+  editText: { color: colors.brand, fontSize: 15, fontWeight: '600' },
   item: { color: colors.text, fontSize: 17 },
   input: { height: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, fontSize: 17, color: colors.text },
   toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },

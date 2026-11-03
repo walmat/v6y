@@ -36,7 +36,7 @@ export function ProductCard({ product, onOpen, onAdd }: Props) {
         accessibilityRole="togglebutton"
         accessibilityLabel={`Favorite ${product.name}`}
         accessibilityState={{ checked: favorite }}
-        hitSlop={10}
+        hitSlop={12}
         onPress={() => setFavorite((f) => !f)}
         style={styles.heart}>
         <Ionicons name={favorite ? 'heart' : 'heart-outline'} size={20} color={colors.text} />
@@ -56,6 +56,6 @@ const styles = StyleSheet.create({
   name: { color: colors.text, fontSize: 17, fontWeight: '600' },
   price: { color: colors.secondaryText, fontSize: 15, marginTop: 2 },
   heart: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center' },
-  add: { minWidth: 64, height: 44, borderRadius: 22, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
+  add: { minWidth: 64, height: 48, borderRadius: 24, backgroundColor: colors.text, alignItems: 'center', justifyContent: 'center' },
   addText: { color: '#ffffff', fontSize: 15, fontWeight: '600' },
 });

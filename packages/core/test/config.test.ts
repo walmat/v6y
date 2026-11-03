@@ -160,3 +160,63 @@ describe('globToRegExp', () => {
     expect(globToRegExp(glob).test(path)).toBe(expected);
   });
 });
+
+describe('field-test fixes', () => {
+  const src = (file: string, line = 1) => ({ file, line, column: 1 });
+  const btn = (label: string, source: ReturnType<typeof src>, owner?: ReturnType<typeof src>) =>
+    node({ interactive: true, role: 'button', label, frame: frame(48, 48), source, ownerSources: owner ? [owner] : undefined });
+  const heading = () => node({ type: 'RCTText', role: 'header', text: 'Title' });
+
+  it('duplicate-label ignores list rows from one call site, but not different call sites', () => {
+    const rows = [1, 2, 3].map(() => btn('Like', src('src/Post.tsx', 10), src('src/Feed.tsx', 5)));
+    expect(ids(screen(node({ children: [heading(), ...rows] })), { extends: 'strict' })).toEqual([]);
+    const two = screen(node({ children: [heading(), btn('Edit', src('src/Order.tsx', 10)), btn('Edit', src('src/Order.tsx', 20))] }));
+    expect(ids(two, { extends: 'strict' })).toEqual(['duplicate-label', 'duplicate-label']);
+    const withRows = { extends: 'strict' as const, rules: { 'duplicate-label': ['warning', { includeRepeated: true }] as ['warning', { includeRepeated: boolean }] } };
+    expect(ids(screen(node({ children: [heading(), ...rows] })), withRows)).toHaveLength(3);
+  });
+
+  it('reports issues inside a shared component at the call site (designSystem config)', () => {
+    const s = screen(node({ children: [node({ interactive: true, frame: frame(48, 48), label: 'Go', source: src('src/components/Button.tsx', 9), ownerSources: [src('src/screens/Home.tsx', 42)] })] }));
+    const [issue] = audit(s, { rules: { 'missing-role': 'error' }, designSystem: ['src/components/**'] });
+    expect(issue?.location).toEqual(src('src/screens/Home.tsx', 42));
+    expect(issue?.via).toEqual(src('src/components/Button.tsx', 9));
+  });
+
+  it('moves to call sites automatically when one component line has 3+ call sites', () => {
+    const at = (line: number) => node({ interactive: true, frame: frame(48, 48), label: 'Go', source: src('src/Button.tsx', 9), ownerSources: [src('src/A.tsx', line)] });
+    const two = audit(screen(node({ children: [at(1), at(2)] })));
+    expect(two.every((i) => i.location?.file === 'src/Button.tsx' && !i.via)).toBe(true);
+    const three = audit(screen(node({ children: [at(1), at(2), at(3)] })));
+    expect(three.map((i) => i.location?.line)).toEqual([1, 2, 3]);
+    expect(three.every((i) => i.via?.file === 'src/Button.tsx')).toBe(true);
+  });
+
+  it('does not double-report an image inside a labelled pressable', () => {
+    const s = screen(node({ interactive: true, role: 'button', frame: frame(48, 48), children: [node({ type: 'RCTImageView', accessible: true })] }));
+    expect(ids(s)).toEqual(['missing-label']);
+  });
+
+  it('accepts selected on radios', () => {
+    const r = (state: A11yNode['state']) => screen(node({ interactive: true, role: 'radio', label: 'Dark', state, frame: frame(48, 48) }));
+    expect(ids(r({ selected: true }))).toEqual([]);
+    expect(ids(r(undefined))).toEqual(['state-not-exposed']);
+  });
+
+  it('points missing-heading at a 17pt bold nav-style title', () => {
+    const s = screen(node({ children: [node({ type: 'RCTText', text: 'Settings', style: { fontSize: 17, fontWeight: '600' } }), node({ type: 'RCTText', text: 'body', style: { fontSize: 15 } })] }));
+    expect(audit(s, { extends: 'strict' })[0]?.message).toMatch(/^"Settings" looks like/);
+  });
+
+  it('never rounds a failing contrast ratio up to the threshold', () => {
+    const s = screen(node({ style: { backgroundColor: '#ffffff' }, children: [node({ type: 'RCTText', text: 'Delete', style: { color: '#e91646' } })] }));
+    const [issue] = audit(s);
+    expect(issue?.message).toMatch(/4\.49:1/);
+  });
+
+  it('honours node kinds from custom host types', () => {
+    const s = screen(node({ style: { backgroundColor: '#fff' }, children: [node({ type: 'RNSelectableText', kind: 'text', text: 'Faint', style: { color: '#bbbbbb' } })] }));
+    expect(ids(s)).toEqual(['text-contrast']);
+  });
+});
+

@@ -56,6 +56,7 @@ export function auditScreen(snapshot: ScreenSnapshot, config?: V6yConfig | Resol
     }
   }
 
+  assignLocations(all, cfg);
   const issues = all.filter((i) => !i.suppressed).sort((a, b) => rank(a.severity) - rank(b.severity));
   const suppressed = all.filter((i) => i.suppressed);
   for (const i of issues) delete i.suppressed;
@@ -65,6 +66,43 @@ export function auditScreen(snapshot: ScreenSnapshot, config?: V6yConfig | Resol
 /** Audits one screen and returns unsuppressed issues, errors first. */
 export function audit(snapshot: ScreenSnapshot, config?: V6yConfig | ResolvedConfig): Issue[] {
   return auditScreen(snapshot, config).issues;
+}
+
+/** Distinct call sites at which a shared component's issues move to the call site. */
+const AUTO_CALL_SITES = 3;
+
+/**
+ * Decides where each issue is reported. Issues inside a shared component go to
+ * the call site, "via" the component, when the component matches `designSystem`,
+ * or (without that config) when the same issue comes from 3+ different call
+ * sites, which is the signature of a design-system component.
+ */
+function assignLocations(issues: Issue[], cfg: ResolvedConfig) {
+  const inDesignSystem = (s?: SourceLocation) => !!s && cfg.designSystem.some((re) => re.test(s.file));
+  const key = (i: Issue) => `${i.ruleId}|${loc(i.source)}`;
+  const sitesByKey = new Map<string, Set<string>>();
+  for (const i of issues) {
+    const site = i.ownerSources?.[0];
+    if (!site) continue;
+    const set = sitesByKey.get(key(i)) ?? new Set<string>();
+    set.add(loc(site));
+    sitesByKey.set(key(i), set);
+  }
+  for (const i of issues) {
+    if (!i.source) continue;
+    let callSite: SourceLocation | undefined;
+    if (cfg.designSystem.length) {
+      if (inDesignSystem(i.source)) callSite = i.ownerSources?.find((s) => !inDesignSystem(s));
+    } else if ((sitesByKey.get(key(i))?.size ?? 0) >= AUTO_CALL_SITES) {
+      callSite = i.ownerSources?.[0];
+    }
+    if (callSite) {
+      i.location = callSite;
+      i.via = i.source;
+    } else {
+      i.location = i.source;
+    }
+  }
 }
 
 /** Whether a set of issues should fail CI under `failOn`. */
@@ -101,11 +139,13 @@ const loc = (s?: SourceLocation) => (s ? `${s.file}:${s.line}:${s.column}` : '')
 export function groupIssues(issues: Issue[]): IssueGroup[] {
   const groups = new Map<string, IssueGroup>();
   for (const i of issues) {
-    const key = `${i.screen}|${i.ruleId}|${loc(i.source)}|${i.message}`;
+    const at = i.location ?? i.source;
+    const key = `${i.screen}|${i.ruleId}|${loc(at)}|${loc(i.via)}|${i.message}`;
     let g = groups.get(key);
     if (!g) groups.set(key, (g = { issue: i, count: 0, usedAt: [] }));
     g.count++;
-    const site = i.ownerSources?.[0];
+    // Issues already moved to their call site don't need a "used at" list.
+    const site = i.via ? undefined : i.ownerSources?.[0];
     if (site && !g.usedAt.some((u) => loc(u) === loc(site))) g.usedAt.push(site);
   }
   return [...groups.values()];

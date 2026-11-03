@@ -164,6 +164,10 @@ describe('text-contrast', () => {
 });
 
 describe('font-scaling-disabled', () => {
+  it('ignores icon-font glyphs, which libraries render with scaling off', () => {
+    expect(ids(screen(text(String.fromCharCode(0xf3a1), { allowFontScaling: false })))).toEqual([]);
+  });
+
   it('errors on allowFontScaling={false}', () => {
     expect(ids(screen(text('Hi', { allowFontScaling: false })))).toEqual(['font-scaling-disabled']);
   });

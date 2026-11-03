@@ -18,6 +18,17 @@ export interface V6yConfig {
     /** Screen-name globs that are never audited, e.g. ["DevMenu", "Storybook*"]. */
     ignore?: string[];
   };
+  /**
+   * Native host component names your app uses that v6y doesn't know, e.g. a
+   * selectable-text view or a bottom-sheet container.
+   */
+  hostTypes?: { text?: string[]; image?: string[]; input?: string[]; modal?: string[] };
+  /**
+   * Source globs of your shared components (e.g. ["src/components/**"]).
+   * Issues inside them are reported at the call site in your screens, "via"
+   * the component, so PR comments land on the lines that changed.
+   */
+  designSystem?: string[];
   /** Which severity fails `v6y check` (CI). Default "error". */
   failOn?: Severity | 'never';
   /** In-app capture behaviour. */
@@ -98,6 +109,8 @@ export interface ResolvedRule {
 export interface ResolvedConfig {
   rules: Map<string, ResolvedRule>;
   ignore: RegExp[];
+  designSystem: RegExp[];
+  hostTypes: { text: string[]; image: string[]; input: string[]; modal: string[] };
   screenIgnore: RegExp[];
   failOn: Severity | 'never';
   capture: { delayMs: number; pollMs: number };
@@ -158,6 +171,13 @@ export function resolveConfig(config: V6yConfig | ResolvedConfig = {}): Resolved
   return {
     rules,
     ignore: (c.ignore ?? []).map(globToRegExp),
+    designSystem: (c.designSystem ?? []).map(globToRegExp),
+    hostTypes: {
+      text: c.hostTypes?.text ?? [],
+      image: c.hostTypes?.image ?? [],
+      input: c.hostTypes?.input ?? [],
+      modal: c.hostTypes?.modal ?? [],
+    },
     screenIgnore: (c.screens?.ignore ?? []).map(globToRegExp),
     failOn: c.failOn ?? 'error',
     capture: { delayMs: c.capture?.delayMs ?? 800, pollMs: c.capture?.pollMs ?? 1000 },

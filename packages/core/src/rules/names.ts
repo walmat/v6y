@@ -1,5 +1,8 @@
 /** Rules about what screen readers announce: accessible names and labels. */
 import { defineRule, describeNode, ScreenFinding } from '../rule';
+import type { A11yNode, SourceLocation } from '../types';
+
+const loc = (s?: SourceLocation) => (s ? `${s.file}:${s.line}:${s.column}` : '');
 import { accessibleName, hasIntrinsicRole, isImage, isTextInput } from '../tree';
 
 export const missingLabel = defineRule({
@@ -71,7 +74,7 @@ export const meaninglessLabel = defineRule<MeaninglessLabelOptions>({
   },
   defaultOptions: { allow: [], generic: [] },
   check(node, _ctx, options) {
-    if (!node.label) return [];
+    if (!node.label || isTextInput(node)) return []; // "Search" on a search field is fine
     if (options.allow.some((a) => a.toLowerCase() === node.label!.trim().toLowerCase())) return [];
     const reason = meaninglessLabelReason(node.label, node.role, options);
     if (!reason) return [];
@@ -96,8 +99,10 @@ export const imageMissingLabel = defineRule({
 **Fix:** add \`accessibilityLabel\` describing the content ("Profile photo of Sam"). If it's decorative, remove \`accessible\` and the role instead.`,
   },
   defaultOptions: {},
-  check(node) {
+  check(node, ctx) {
     if (!isImage(node) || node.interactive) return []; // pressable images are missing-label's job
+    // Inside an accessible pressable, the image is merged into it; missing-label covers it.
+    if (ctx.ancestors.some((a) => a.interactive && a.accessible !== false)) return [];
     if (node.accessible !== true && node.role !== 'image' && node.role !== 'img') return [];
     if (accessibleName(node)) return [];
     return [
@@ -147,6 +152,11 @@ export const inputMissingLabel = defineRule<InputMissingLabelOptions>({
 export interface DuplicateLabelOptions {
   /** Treat "Delete" and "delete" as the same. Default true. */
   ignoreCase: boolean;
+  /**
+   * Also flag repeats that come from one call site rendered many times (list
+   * rows: "Like" on every post). Off by default; the row gives context.
+   */
+  includeRepeated: boolean;
 }
 
 export const duplicateLabel = defineRule<DuplicateLabelOptions>({
@@ -159,7 +169,7 @@ export const duplicateLabel = defineRule<DuplicateLabelOptions>({
 
 **Fix:** include the item in the label: \`accessibilityLabel={\`Delete \${item.name}\`}\`.`,
   },
-  defaultOptions: { ignoreCase: true },
+  defaultOptions: { ignoreCase: true, includeRepeated: false },
   checkScreen(_snapshot, visible, options) {
     const groups = new Map<string, typeof visible[number][]>();
     for (const n of visible) {
@@ -170,7 +180,13 @@ export const duplicateLabel = defineRule<DuplicateLabelOptions>({
       groups.set(key, [...(groups.get(key) ?? []), n]);
     }
     const findings: ScreenFinding[] = [];
-    for (const nodes of groups.values()) {
+    // Without source info we can't tell repeats apart, so each node counts as its own call site.
+    const callSite = (n: A11yNode) => (n.source ? `${loc(n.source)}|${loc(n.ownerSources?.[0])}` : n.id);
+    for (const all of groups.values()) {
+      // One representative per call site unless repeats are wanted: N list rows are one thing.
+      const nodes = options.includeRepeated
+        ? all
+        : [...new Map(all.map((n) => [callSite(n), n] as const)).values()];
       if (nodes.length < 2) continue;
       const name = accessibleName(nodes[0]!);
       for (const node of nodes) {

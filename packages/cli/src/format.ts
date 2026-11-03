@@ -39,8 +39,9 @@ export function formatIssues(issues: Issue[], { screenHeadings = true } = {}): s
       entries++;
       const icon = i.severity === 'error' ? red('✖ error  ') : yellow('⚠ warning');
       const times = count > 1 ? bold(` ×${count}`) : '';
-      const where = i.source
-        ? cyan(`${i.source.file}:${i.source.line}:${i.source.column}`)
+      const at = i.location ?? i.source;
+      const where = at
+        ? cyan(`${at.file}:${at.line}:${at.column}`) + (i.via ? dim(` via ${i.via.file}:${i.via.line}`) : '')
         : dim('(no source: is withV6y() in metro.config.js?)');
       out.push(`  ${icon}${times} ${i.message}`);
       out.push(`    ${dim('at')} ${where} ${dim(`[${i.ruleId}, WCAG ${i.wcag.join(', ')}]`)}`);

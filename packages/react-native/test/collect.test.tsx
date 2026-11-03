@@ -126,6 +126,11 @@ describe('collect', () => {
 
   it('hides unfocused navigation screens and finds the focused route', async () => {
     const nav = (focused: boolean) => ({ isFocused: () => focused });
+    // A tab bar button: the navigator's navigation (focused) + a route that is NOT the focused one.
+    const tabsNav = { isFocused: () => true, getState: () => ({ index: 1, routes: [{ key: 'feed' }, { key: 'profile' }] }) };
+    function TabButton(_: any) {
+      return h(Pressable, { onPress: () => {} });
+    }
     function Screen(_: any) {
       return h(Pressable, { onPress: () => {} });
     }
@@ -133,6 +138,7 @@ describe('collect', () => {
       return h(RCTView, null,
         h(Screen, { route: { name: 'Feed' }, navigation: nav(false) }),
         h(Screen, { route: { name: 'Profile' }, navigation: nav(true) }),
+        h(RCTView, null, h(RCTView, null, h(TabButton, { route: { name: 'Feed', key: 'feed' }, navigation: tabsNav }))),
       );
     }
     const element = h(Tabs, { route: { name: 'Home' }, navigation: nav(true) });
@@ -142,4 +148,44 @@ describe('collect', () => {
     expect(profile!.hidden).toBeUndefined();
     expect(focusedRouteName(await rootFiberOf(element))).toBe('Profile');
   });
+
+  it('does not count onClick-only wrapper Views as pressable (native)', async () => {
+    const tree = await snapshotOf(h(RCTView, { onClick: () => {} }, h(Pressable, { onPress: () => {} })));
+    const wrapper = tree.children[0]!;
+    expect(wrapper.interactive).toBeUndefined();
+    expect(wrapper.children[0]!.interactive).toBe(true);
+  });
+
+  it('audits only the topmost modal when one is open', async () => {
+    const tree = await snapshotOf(
+      h(RCTView, null,
+        h(Pressable, { onPress: () => {} }),
+        h('RCTModalHostView', { visible: true }, h(Pressable, { onPress: () => {}, accessibilityLabel: 'Close' })),
+      ),
+    );
+    const [screenContent] = tree.children;
+    const background = screenContent!.children[0]!;
+    const modal = screenContent!.children[1]!;
+    expect(background.hidden).toBe(true);
+    expect(modal.kind).toBe('modal');
+    expect(modal.hidden).toBeUndefined();
+    expect(modal.children[0]!.hidden).toBeUndefined();
+  });
+
+  it('treats aria-modal / accessibilityViewIsModal views as modal', async () => {
+    const tree = await snapshotOf(h(RCTView, null, h(RCTView, { testID: 'bg' }), h(RCTView, { 'aria-modal': true })));
+    expect(tree.children[0]!.children.map((c) => c.hidden)).toEqual([true, undefined]);
+  });
+
+  it('classifies custom host types and reads text from a text prop', async () => {
+    let provider: any;
+    await act(async () => {
+      TestRenderer.create(h(V6yProvider, { ref: (r: any) => (provider = r), autoCapture: false } as any, h('MySelectableText', { text: 'Hello' }), h('RNUITextView', { text: 'Built in' })));
+    });
+    let root = provider._reactInternals;
+    while (root.return) root = root.return;
+    const { root: tree } = await collect(root.stateNode.current, { measure, hostTypes: { text: ['MySelectableText'] } });
+    expect(tree.children.map((c) => [c.kind, c.text])).toEqual([['text', 'Hello'], ['text', 'Built in']]);
+  });
 });
+

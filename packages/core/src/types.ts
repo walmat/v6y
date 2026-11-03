@@ -49,11 +49,15 @@ export interface NodeStyle {
   opacity?: number;
 }
 
+/** What the collector recognised a host component as (built-in names plus config `hostTypes`). */
+export type NodeKind = 'text' | 'image' | 'input' | 'modal';
+
 export interface A11yNode {
   /** Stable within one snapshot. */
   id: string;
   /** Native host type, e.g. "RCTView", "RCTText", "RCTImageView". */
   type: string;
+  kind?: NodeKind;
   /** Nearest named user-level component, e.g. "Pressable", "CheckoutButton". */
   component?: string;
 
@@ -119,8 +123,15 @@ export interface Issue {
   screen: string;
   nodeId: string;
   component?: string;
+  /** Where the element that has the problem was written. */
   source?: SourceLocation;
   ownerSources?: SourceLocation[];
+  /**
+   * Where to report and fix it. Usually `source`; for issues inside a shared
+   * (design-system) component it's the call site, and `via` is the component.
+   */
+  location?: SourceLocation;
+  via?: SourceLocation;
   /** Short, concrete suggestion for fixing it. */
   fix?: string;
   /** Set when an inline comment or config `ignore` silenced this issue. */

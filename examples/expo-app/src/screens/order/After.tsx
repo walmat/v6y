@@ -17,6 +17,20 @@ export default function OrderAfter() {
         <Text style={styles.item}>{formatPrice(5)}</Text>
       </View>
 
+      {/* The visible text stays "Edit"; the label says what it edits. */}
+      <View style={styles.line}>
+        <Text style={styles.detail}>Deliver to 12 Elm St</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Edit delivery address" onPress={() => {}} style={styles.edit}>
+          <Text style={styles.editText}>Edit</Text>
+        </Pressable>
+      </View>
+      <View style={styles.line}>
+        <Text style={styles.detail}>Visa •••• 4242</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel="Edit payment method" onPress={() => {}} style={styles.edit}>
+          <Text style={styles.editText}>Edit</Text>
+        </Pressable>
+      </View>
+
       {/* Visible labels, linked to their fields. accessibilityLabel covers iOS;
           aria-labelledby (nativeID) links the visible label on Android. */}
       <Text nativeID="name-label" style={styles.fieldLabel}>
@@ -60,11 +74,14 @@ export default function OrderAfter() {
 
 const styles = StyleSheet.create({
   content: { padding: 16, gap: 12 },
-  line: { flexDirection: 'row', justifyContent: 'space-between' },
+  line: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  detail: { color: colors.secondaryText, fontSize: 15 },
+  edit: { minWidth: 48, height: 48, alignItems: 'flex-end', justifyContent: 'center' },
+  editText: { color: colors.brand, fontSize: 15, fontWeight: '600' },
   item: { color: colors.text, fontSize: 17 },
   fieldLabel: { color: colors.text, fontSize: 15, fontWeight: '600', marginBottom: -6 },
   input: { height: 48, borderRadius: 10, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 12, fontSize: 17, color: colors.text },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 44 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48 },
   track: { width: 51, height: 31, borderRadius: 16, backgroundColor: colors.border, padding: 2 },
   trackOn: { backgroundColor: '#34c759' },
   knob: { width: 27, height: 27, borderRadius: 14, backgroundColor: '#ffffff' },

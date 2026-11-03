@@ -3,7 +3,7 @@
  * format. Reads React internals (the same ones React DevTools uses), so keep it
  * defensive: unknown shapes must degrade to "less information", never crash.
  */
-import type { A11yNode, A11yState, Frame, InlineIgnore, Insets, NodeStyle, SourceLocation } from '@v6y/core';
+import type { A11yNode, A11yState, Frame, InlineIgnore, Insets, NodeKind, NodeStyle, SourceLocation } from '@v6y/core';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Fiber = any;
@@ -25,14 +25,32 @@ const IGNORE_PROP = '__v6yIgnore';
 const MAX_OWNER_SOURCES = 5;
 
 const SCROLL_TYPES = /ScrollView|ScrollContentView|RecyclerView/;
-// 'Text' is the host name under React Native's Jest preset.
-const TEXT_TYPES = new Set(['RCTText', 'RCTVirtualText', 'Text']);
+/** Built-in host names per kind. 'Text', 'Image', … are the names under React Native's Jest preset. */
+const BUILTIN_KINDS: Record<NodeKind, string[]> = {
+  // RNUITextView: @bsky.app/react-native-uitextview (selectable text; content in a `text` prop).
+  text: ['RCTText', 'RCTVirtualText', 'Text', 'RNUITextView', 'RNUITextViewChild'],
+  image: ['RCTImageView', 'Image', 'FastImageView', 'ExpoImage', 'ViewManagerAdapter_ExpoImage', 'RNSVGSvgView'],
+  input: ['RCTSinglelineTextInputView', 'RCTMultilineTextInputView', 'AndroidTextInput', 'TextInput'],
+  modal: ['RCTModalHostView', 'ModalHostView', 'Modal'],
+};
+
+export type HostTypes = Partial<Record<NodeKind, string[]>>;
+
+function kindTable(custom: HostTypes = {}): Map<string, NodeKind> {
+  const table = new Map<string, NodeKind>();
+  for (const kind of Object.keys(BUILTIN_KINDS) as NodeKind[]) {
+    for (const name of [...BUILTIN_KINDS[kind], ...(custom[kind] ?? [])]) table.set(name, kind);
+  }
+  return table;
+}
 
 export type MeasureFn = (stateNode: unknown, node: A11yNode) => Promise<Frame | undefined>;
 
 export interface CollectOptions {
   /** How to measure host views. Defaults to measureInWindow (Paper and Fabric). */
   measure?: MeasureFn;
+  /** Extra host component names per kind (from config `hostTypes`). */
+  hostTypes?: HostTypes;
   /** Measure only interactive nodes (the only ones current rules need). Default true. */
   measureInteractiveOnly?: boolean;
 }
@@ -105,9 +123,38 @@ function isHidden(type: string, p: any, flat: Record<string, any>): boolean {
   return false;
 }
 
+const isWeb = () => typeof document !== 'undefined' && typeof (globalThis as any).window !== 'undefined';
+
+/**
+ * Pressable, Touchable* and pressable Text all put `onResponderRelease` on the
+ * host (via Pressability); `onPress` covers mocks and custom natives. A bare
+ * `onClick` is usually a web-compat wrapper (e.g. stopping propagation), not a
+ * control, so it only counts on web.
+ */
 function isInteractive(type: string, p: any): boolean {
   if (SCROLL_TYPES.test(type)) return false;
-  return typeof p.onClick === 'function' || typeof p.onResponderRelease === 'function' || typeof p.onPress === 'function';
+  if (typeof p.onResponderRelease === 'function' || typeof p.onPress === 'function') return true;
+  return isWeb() && typeof p.onClick === 'function';
+}
+
+function isModal(kind: NodeKind | undefined, p: any): boolean {
+  if (p.accessibilityViewIsModal === true || p['aria-modal'] === true) return true;
+  return kind === 'modal' && p.visible !== false;
+}
+
+/** Screen readers only reach the topmost modal: hide everything outside it. */
+function hideOutsideModal(root: A11yNode, modal: A11yNode, parents: Map<A11yNode, A11yNode>) {
+  const path = new Set<A11yNode>();
+  for (let n: A11yNode | undefined = modal; n; n = parents.get(n)) path.add(n);
+  const prune = (n: A11yNode) => {
+    if (n === modal) return;
+    if (!path.has(n)) {
+      n.hidden = true;
+      return;
+    }
+    n.children.forEach(prune);
+  };
+  prune(root);
 }
 
 /** Finds the current HostRoot fiber starting from any fiber in the tree. */
@@ -162,6 +209,12 @@ export function focusedRouteName(rootFiber: Fiber): string | undefined {
       let focused = false;
       try {
         focused = p.navigation.isFocused();
+        // Tab bar buttons also get `route` + `navigation` (the navigator's). Only count a route
+        // if it is the focused one in its navigator's state, i.e. an actual focused screen.
+        const state = p.navigation.getState?.();
+        if (focused && Array.isArray(state?.routes) && typeof state.index === 'number') {
+          focused = state.routes[state.index]?.key === p.route.key;
+        }
       } catch {
         // ignore
       }
@@ -184,6 +237,9 @@ export async function collect(rootFiber: Fiber, options: CollectOptions = {}): P
 
   const root: A11yNode = { id: String(nextId++), type: 'Root', children: [] };
   const toMeasure: Array<[unknown, A11yNode]> = [];
+  const kinds = kindTable(options.hostTypes);
+  const parents = new Map<A11yNode, A11yNode>();
+  const modals: A11yNode[] = [];
 
   const walk = (fiber: Fiber, parent: A11yNode, ctx: WalkContext) => {
     for (let f = fiber; f; f = f.sibling) visit(f, parent, ctx);
@@ -232,7 +288,11 @@ export async function collect(rootFiber: Fiber, options: CollectOptions = {}): P
       if (typeof p.placeholder === 'string') node.placeholder = p.placeholder;
       const labelledBy = p.accessibilityLabelledBy ?? p['aria-labelledby'];
       if (typeof labelledBy === 'string' || (Array.isArray(labelledBy) && labelledBy.length)) node.labelledBy = String(labelledBy);
-      if (TEXT_TYPES.has(type)) {
+      const kind = kinds.get(type);
+      if (kind) node.kind = kind;
+      if (kind === 'text') {
+        // Some native text views take their content as a prop instead of children.
+        if (typeof p.text === 'string') node.text = p.text;
         if (typeof p.allowFontScaling === 'boolean') node.allowFontScaling = p.allowFontScaling;
         if (typeof p.maxFontSizeMultiplier === 'number') node.maxFontSizeMultiplier = p.maxFontSizeMultiplier;
       }
@@ -249,6 +309,8 @@ export async function collect(rootFiber: Fiber, options: CollectOptions = {}): P
       if (ignores.length) node.ignore = ignores;
 
       parent.children.push(node);
+      parents.set(node, parent);
+      if (!node.hidden && isModal(kind, p)) modals.push(node);
       if (!node.hidden && (!interactiveOnly || node.interactive)) toMeasure.push([f.stateNode, node]);
       // A host element starts a fresh composite context for its children.
       walk(f.child, node, { composites: [], ignores, hidden: ctx.hidden });
@@ -280,6 +342,10 @@ export async function collect(rootFiber: Fiber, options: CollectOptions = {}): P
   };
 
   walk(rootFiber.child, root, { composites: [], ignores: [], hidden: false });
+
+  // Later in tree order renders on top: the last visible modal is the one in front.
+  const topModal = modals[modals.length - 1];
+  if (topModal) hideOutsideModal(root, topModal, parents);
 
   await Promise.all(
     toMeasure.map(async ([stateNode, node]) => {

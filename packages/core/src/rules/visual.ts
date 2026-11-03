@@ -7,6 +7,7 @@ import {
   effectiveFontWeight,
   effectiveTextColor,
   isDisabled,
+  hasSpeakableText,
   isText,
   speakableText,
 } from '../tree';
@@ -112,6 +113,7 @@ v6y computes contrast from your styles, compositing translucent backgrounds. Whe
     const target = o.level === 'AAA' ? (large ? 4.5 : 7) : large ? 3 : 4.5;
     const ratio = contrastRatio(fg, bg);
     if (ratio >= target) return [];
+    const shown = (Math.floor(ratio * 100) / 100).toFixed(2); // 4.4988 must not print as "4.50"
     // Offer both directions: a text color that works on this background, and a
     // background that works with this text color (often the right fix for buttons).
     const text = suggestTextColor(fg, bg, target);
@@ -121,7 +123,7 @@ v6y computes contrast from your styles, compositing translucent backgrounds. Whe
     // White/black text on a colored surface (a button): changing the surface is usually the fix.
     const options = (isPlain(fg) ? [backOption, textOption] : [textOption, backOption]).filter(Boolean) as string[];
     const finding: Finding = {
-      message: `Text "${truncate(speakableText(node.text))}" has contrast ${ratio.toFixed(2)}:1 (${toHex(fg)} on ${toHex(bg)}); needs ${target}:1 for ${large ? 'large' : 'normal'} text.`,
+      message: `Text "${truncate(speakableText(node.text))}" has contrast ${shown}:1 (${toHex(fg)} on ${toHex(bg)}); needs ${target}:1 for ${large ? 'large' : 'normal'} text.`,
       fix: options.length ? `Use ${options.join(', or ')}.` : undefined,
       wcag: o.level === 'AAA' ? ['1.4.6'] : undefined,
     };
@@ -158,7 +160,8 @@ export const fontScalingDisabled = defineRule<FontScalingOptions>({
   },
   defaultOptions: { minMultiplier: 2 },
   check(node, _ctx, o) {
-    if (!isText(node)) return [];
+    // Icon fonts (e.g. @expo/vector-icons) disable scaling on purpose; icons aren't text.
+    if (!isText(node) || !hasSpeakableText(node)) return [];
     if (node.allowFontScaling === false) {
       return [
         {

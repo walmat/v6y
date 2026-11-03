@@ -24,12 +24,12 @@ export function ProductCard({ product, onOpen, onAdd }: Props) {
         </View>
         {/* ✖ nested-interactive: a button inside the card's own pressable. VoiceOver merges the
               card into one element, so "Favorite" can never be reached.
-            ✖ duplicate-label: every card's favorite button is just "Favorite". */}
+            (Every card's button is also just "Favorite". Repeats from one list aren't flagged
+             by default since the row gives context; `duplicate-label: { includeRepeated: true }` flags them.) */}
         <Pressable accessibilityRole="button" accessibilityLabel="Favorite" hitSlop={12} onPress={() => {}} style={styles.heart}>
           <Ionicons name="heart-outline" size={20} color={colors.text} />
         </Pressable>
       </Pressable>
-      {/* ✖ duplicate-label: three buttons all announced as "Add". Add what? */}
       <Pressable accessibilityRole="button" onPress={onAdd} style={styles.add}>
         <Text style={styles.addText}>Add</Text>
       </Pressable>

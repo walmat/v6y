@@ -42,8 +42,8 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.mutedText, fontSize: 15, marginBottom: 16 },
   row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', minHeight: 48, borderBottomWidth: 1, borderBottomColor: colors.surface },
   rowText: { color: colors.text, fontSize: 17 },
-  signOutRow: { paddingVertical: 12, marginTop: 16 },
+  signOutRow: { minHeight: 48, justifyContent: 'center', marginTop: 16 },
   signOut: { color: colors.danger, fontSize: 17, fontWeight: '600' },
-  versionRow: { paddingVertical: 12 },
+  versionRow: { minHeight: 48, justifyContent: 'center' },
   version: { color: colors.mutedText, fontSize: 13 },
 });

@@ -64,7 +64,9 @@ function rn(): any {
 /** The Metro dev server's origin, taken from the bundle URL, so it works on simulators, emulators and LAN devices. */
 export function devServerEndpoint(): string {
   if (runtime.endpoint) return runtime.endpoint;
-  const scriptURL: string | undefined = rn()?.NativeModules?.SourceCode?.scriptURL;
+  // Bridgeless (new architecture) only exposes it via getConstants(); the old bridge as a property.
+  const sourceCode = rn()?.NativeModules?.SourceCode;
+  const scriptURL: string | undefined = sourceCode?.getConstants?.()?.scriptURL ?? sourceCode?.scriptURL;
   const origin = scriptURL ? /^(https?:\/\/[^/]+)/.exec(scriptURL)?.[1] : undefined;
   return `${origin ?? 'http://localhost:8081'}/v6y/report`;
 }
@@ -102,10 +104,14 @@ export class V6yProvider extends React.Component<React.PropsWithChildren<Runtime
 
   /** Polls for the focused route; captures once it changes and settles. */
   private startWatching() {
+    let pollsWithoutRoute = 0;
     const check = () => {
       const root = currentRoot();
       if (!root) return;
-      const name = focusedRouteName(root) ?? 'App';
+      const route = focusedRouteName(root);
+      // Navigation mounts after the first render; give it a few polls before assuming there is none.
+      if (!route && ++pollsWithoutRoute < 3) return;
+      const name = route ?? 'App';
       if (name === lastScreen) return;
       lastScreen = name;
       clearTimeout(this.pending);
@@ -129,7 +135,7 @@ export async function capture(screen?: string): Promise<CaptureResult | undefine
     return undefined;
   }
   const name = screen ?? focusedRouteName(root) ?? 'App';
-  const { root: tree } = await collect(root, runtime.collect);
+  const { root: tree } = await collect(root, { ...runtime.collect, hostTypes: resolved.hostTypes });
 
   const RN = rn();
   const win = RN?.Dimensions?.get?.('window');
@@ -173,7 +179,8 @@ function logSummary(screen: string, issues: Issue[], suppressed: number) {
   const errors = issues.filter((i) => i.severity === 'error').length;
   const groups = groupIssues(issues);
   const lines = groups.slice(0, 10).map(({ issue: i, count }) => {
-    const at = i.source ? ` (${i.source.file}:${i.source.line})` : '';
+    const loc = i.location ?? i.source;
+    const at = loc ? ` (${loc.file}:${loc.line}${i.via ? ` via ${i.via.file}:${i.via.line}` : ''})` : '';
     return `  ${i.severity === 'error' ? '✖' : '⚠'}${count > 1 ? ` ×${count}` : ''} ${i.ruleId}: ${i.message}${at}`;
   });
   const more = groups.length > 10 ? `\n  …and ${groups.length - 10} more (see the Metro terminal)` : '';

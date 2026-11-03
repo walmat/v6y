@@ -74,10 +74,12 @@ export const stateNotExposed = defineRule({
     const key = STATEFUL[node.role];
     if (!key) return [];
     if (node.state?.[key] !== undefined) return [];
+    // VoiceOver announces "selected" for radios too.
+    if (node.role === 'radio' && node.state?.selected !== undefined) return [];
     return [
       {
         message: `${describeNode(node)} has role "${node.role}" but doesn't expose whether it's ${key}.`,
-        fix: `Add accessibilityState={{ ${key}: … }} (or aria-${key}).`,
+        fix: `Add accessibilityState={{ ${key}: … }} (or aria-${key}). If you already pass it, check that a wrapper component isn't overwriting accessibilityState.`,
       },
     ];
   },
@@ -100,9 +102,13 @@ export const missingHeading = defineRule({
     if (visible.some((n) => n.role === 'header' || n.role === 'heading')) return [];
     // Point at the text that looks like the title (the largest, at least 20pt), so the fix location is obvious.
     let title: A11yNode | undefined;
-    for (const n of visible) {
+    const score = (n: A11yNode) => {
       const size = n.style?.fontSize ?? 0;
-      if (isText(n) && speakableText(n.text) && size >= 20 && size > (title?.style?.fontSize ?? 0)) title = n;
+      const bold = ['bold', '600', '700', '800', '900'].includes(String(n.style?.fontWeight ?? ''));
+      return size >= 20 || (bold && size >= 17) ? size + (bold ? 0.5 : 0) : 0;
+    };
+    for (const n of visible) {
+      if (isText(n) && speakableText(n.text) && score(n) > (title ? score(title) : 0)) title = n;
     }
     if (title) {
       return [

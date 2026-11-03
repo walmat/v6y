@@ -15,11 +15,12 @@ interface Props {
  *
  *   ✓ label is a required prop → accessibilityLabel
  *   ✓ accessibilityRole="button"
- *   ✓ hitSlop grows the 32×32 visual to a 44×44 touch target without changing layout
+ *   ✓ hitSlop grows the 32×32 visual to a 48×48 touch target (Apple asks for 44pt,
+ *     Android's Material for 48dp) without changing layout
  */
 export function IconButton({ icon, label, onPress }: Props) {
   return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={6} style={styles.button}>
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={8} style={styles.button}>
       <Ionicons name={icon} size={20} color={colors.text} />
     </Pressable>
   );

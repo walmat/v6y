@@ -22,7 +22,8 @@ const HostSingleton = 27;
 
 const SOURCE_PROP = '__v6y';
 const IGNORE_PROP = '__v6yIgnore';
-const MAX_OWNER_SOURCES = 5;
+/** Enough to reach app code through deep design-system chains (Button → Pressable → View …). */
+const MAX_OWNER_SOURCES = 16;
 
 const SCROLL_TYPES = /ScrollView|ScrollContentView|RecyclerView/;
 /** Built-in host names per kind. 'Text', 'Image', … are the names under React Native's Jest preset. */
@@ -174,6 +175,28 @@ interface WalkContext {
   ignores: InlineIgnore[];
   /** Inside an unfocused navigation screen. */
   hidden: boolean;
+  /**
+   * The nearest host ancestor's full source chain (its source, then its owners).
+   * Carried across host boundaries so owner chains can reach app code even when
+   * the components in between are all design-system code.
+   */
+  inherited: SourceLocation[];
+}
+
+const locKey = (s: SourceLocation) => `${s.file}:${s.line}:${s.column}`;
+
+/** Concatenates source chains, dropping repeats (forwarded stamps) while keeping order. */
+function mergeChains(...chains: SourceLocation[][]): SourceLocation[] {
+  const seen = new Set<string>();
+  const out: SourceLocation[] = [];
+  for (const s of chains.flat()) {
+    const k = locKey(s);
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push(s);
+    }
+  }
+  return out;
 }
 
 function parseIgnore(raw: unknown, source?: SourceLocation): InlineIgnore | undefined {
@@ -298,11 +321,12 @@ export async function collect(rootFiber: Fiber, options: CollectOptions = {}): P
       }
       const ownRaw = p[SOURCE_PROP];
       const own = ownRaw !== undefined && ownRaw !== stamped[0]?.raw ? parseSource(ownRaw) : undefined;
-      const sources = (own ? [own] : []).concat(stamped.map((c) => c.source!));
-      if (sources.length) {
-        node.source = sources[0];
-        if (sources.length > 1) node.ownerSources = sources.slice(1, 1 + MAX_OWNER_SOURCES);
-      }
+      const segment = (own ? [own] : []).concat(stamped.map((c) => c.source!));
+      // `source` comes only from this host's own segment; owners continue up through ancestors.
+      const chain = mergeChains(segment, ctx.inherited);
+      if (segment.length) node.source = segment[0];
+      const owners = segment.length ? chain.slice(1) : chain;
+      if (owners.length) node.ownerSources = owners.slice(0, MAX_OWNER_SOURCES);
 
       const ownIgnore = parseIgnore(p[IGNORE_PROP], node.source);
       const ignores = ownIgnore ? ctx.ignores.concat(ownIgnore) : ctx.ignores;
@@ -313,7 +337,7 @@ export async function collect(rootFiber: Fiber, options: CollectOptions = {}): P
       if (!node.hidden && isModal(kind, p)) modals.push(node);
       if (!node.hidden && (!interactiveOnly || node.interactive)) toMeasure.push([f.stateNode, node]);
       // A host element starts a fresh composite context for its children.
-      walk(f.child, node, { composites: [], ignores, hidden: ctx.hidden });
+      walk(f.child, node, { composites: [], ignores, hidden: ctx.hidden, inherited: chain });
       return;
     }
 
@@ -336,12 +360,13 @@ export async function collect(rootFiber: Fiber, options: CollectOptions = {}): P
         composites: composites.concat({ name: componentName(f.type), source, raw: forwarded ? undefined : raw }),
         ignores: ignore ? ctx.ignores.concat(ignore) : ctx.ignores,
         hidden: ctx.hidden || isUnfocusedScreen(props),
+        inherited: ctx.inherited,
       };
     }
     walk(f.child, parent, next);
   };
 
-  walk(rootFiber.child, root, { composites: [], ignores: [], hidden: false });
+  walk(rootFiber.child, root, { composites: [], ignores: [], hidden: false, inherited: [] });
 
   // Later in tree order renders on top: the last visible modal is the one in front.
   const topModal = modals[modals.length - 1];

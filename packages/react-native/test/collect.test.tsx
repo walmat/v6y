@@ -187,5 +187,25 @@ describe('collect', () => {
     const { root: tree } = await collect(root.stateNode.current, { measure, hostTypes: { text: ['MySelectableText'] } });
     expect(tree.children.map((c) => [c.kind, c.text])).toEqual([['text', 'Hello'], ['text', 'Built in']]);
   });
+
+  it('carries owner chains across host boundaries so they reach app code', async () => {
+    // App screen → Card (design system, renders a View) → Button (design system) → Pressable host.
+    function Button({ __v6y }: any) {
+      return h(Pressable, { onPress: () => {}, __v6y: 'src/components/Button.tsx:9:5' });
+    }
+    function Card(_: any) {
+      return h(RCTView, { __v6y: 'src/components/Card.tsx:4:5' }, h(Button, { __v6y: 'src/components/Card.tsx:5:7' }));
+    }
+    const tree = await snapshotOf(h(Card, { __v6y: 'src/screens/Home.tsx:42:7' }));
+    const button = find(tree, (n) => !!n.interactive)!;
+    expect(button.source?.file).toBe('src/components/Button.tsx');
+    expect(button.ownerSources?.map((s) => `${s.file}:${s.line}`)).toEqual([
+      'src/components/Card.tsx:5',
+      'src/components/Card.tsx:4',
+      'src/screens/Home.tsx:42',
+    ]);
+    const issues = audit({ screen: 'Home', platform: 'ios', root: tree }, { designSystem: ['src/components/**'] });
+    expect(issues.every((i) => i.location?.file === 'src/screens/Home.tsx')).toBe(true);
+  });
 });
 

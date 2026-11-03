@@ -97,6 +97,41 @@ export const stateNotExposed = defineRule({
 
 // ---------------------------------------------------------------------------
 
+const SCROLLERS = /ScrollView|RecyclerView|VirtualizedList|FlashList/;
+/** Text items into a scroll view that still count as "the top" of the screen. */
+const TOP_ROWS = 6;
+
+function looksLikeTitle(n: A11yNode): boolean {
+  if (!isText(n) || !speakableText(n.text)) return false;
+  const size = n.style?.fontSize ?? 0;
+  const bold = ['bold', '600', '700', '800', '900'].includes(String(n.style?.fontWeight ?? ''));
+  return size >= 20 || (bold && size >= 16);
+}
+
+/**
+ * The text that most likely is this screen's title, so the fix location is
+ * obvious: the first title-like text (≥20pt, or ≥16pt semibold) in screen order,
+ * ignoring anything deep inside a scrolling list (feed rows, footers).
+ */
+function findTitle(root: A11yNode): A11yNode | undefined {
+  let found: A11yNode | undefined;
+  const visit = (n: A11yNode, scroll: { texts: number } | undefined): void => {
+    if (found || n.hidden) return;
+    if (!scroll && SCROLLERS.test(n.type)) scroll = { texts: 0 };
+    if (isText(n) && speakableText(n.text)) {
+      const deepInList = scroll !== undefined && scroll.texts >= TOP_ROWS;
+      if (scroll) scroll.texts++;
+      if (!deepInList && looksLikeTitle(n)) {
+        found = n;
+        return;
+      }
+    }
+    for (const c of n.children) visit(c, scroll);
+  };
+  visit(root, undefined);
+  return found;
+}
+
 export const missingHeading = defineRule({
   meta: {
     id: 'missing-heading',
@@ -108,18 +143,9 @@ export const missingHeading = defineRule({
 **Fix:** add \`accessibilityRole="header"\` to the screen title. Note: native navigation bars (e.g. native-stack headers) aren't visible to v6y; if yours provides the heading, disable this rule for those screens.`,
   },
   defaultOptions: {},
-  checkScreen(_snapshot, visible) {
+  checkScreen(snapshot, visible) {
     if (visible.some((n) => n.role === 'header' || n.role === 'heading')) return [];
-    // Point at the text that looks like the title (the largest, at least 20pt), so the fix location is obvious.
-    let title: A11yNode | undefined;
-    const score = (n: A11yNode) => {
-      const size = n.style?.fontSize ?? 0;
-      const bold = ['bold', '600', '700', '800', '900'].includes(String(n.style?.fontWeight ?? ''));
-      return size >= 20 || (bold && size >= 17) ? size + (bold ? 0.5 : 0) : 0;
-    };
-    for (const n of visible) {
-      if (isText(n) && speakableText(n.text) && score(n) > (title ? score(title) : 0)) title = n;
-    }
+    const title = findTitle(snapshot.root);
     if (title) {
       return [
         {

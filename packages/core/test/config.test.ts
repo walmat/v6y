@@ -239,6 +239,22 @@ describe('field-test fixes', () => {
     expect(ids(r(undefined))).toEqual(['state-not-exposed']);
   });
 
+  it('points missing-heading at the first title-like text, not the largest or a list footer', () => {
+    const t = (text: string, fontSize: number, fontWeight?: string) => node({ type: 'RCTText', text, style: { fontSize, fontWeight } });
+    const rows = Array.from({ length: 8 }, (_, i) => t(`Post ${i}`, 15));
+    const s = screen(
+      node({
+        children: [
+          t('Settings', 16.9, '600'), // header title (Bluesky's size)
+          node({ type: 'RCTScrollView', children: [t('Alice', 22, '700'), ...rows, t("You've reached the end", 18, '700')] }),
+        ],
+      }),
+    );
+    expect(audit(s, { extends: 'strict' })[0]?.message).toMatch(/^"Settings" looks like/);
+    const noHeader = screen(node({ children: [node({ type: 'RCTScrollView', children: [...rows, t("You've reached the end", 18, '700')] })] }));
+    expect(audit(noHeader, { extends: 'strict' })[0]?.message).toMatch(/^This screen has no heading/);
+  });
+
   it('points missing-heading at a 17pt bold nav-style title', () => {
     const s = screen(node({ children: [node({ type: 'RCTText', text: 'Settings', style: { fontSize: 17, fontWeight: '600' } }), node({ type: 'RCTText', text: 'body', style: { fontSize: 15 } })] }));
     expect(audit(s, { extends: 'strict' })[0]?.message).toMatch(/^"Settings" looks like/);

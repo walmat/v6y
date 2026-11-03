@@ -1,0 +1,16 @@
+{
+  "name": "v6y",
+  "version": "0.1.0",
+  "description": "Accessibility auditing for React Native that points at the line of code to fix",
+  "license": "MIT",
+  "keywords": ["react-native", "expo", "accessibility", "a11y", "wcag", "metro", "voiceover", "talkback"],
+  "repository": { "type": "git", "url": "git+https://github.com/walmat/v6y.git" },
+  "homepage": "https://github.com/walmat/v6y#readme",
+  "main": "dist/core/index.js",
+  "types": "dist/core/index.d.ts",
+  "bin": { "v6y": "dist/cli/bin.js" },
+  "files": ["dist", "*.js", "*.d.ts", "README.md", "LICENSE"],
+  "scripts": { "bundle": "node scripts/bundle.mjs" },
+  "peerDependencies": { "react": ">=18", "react-native": ">=0.72" },
+  "peerDependenciesMeta": { "react-native": { "optional": true }, "react": { "optional": true } }
+}

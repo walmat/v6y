@@ -1,4 +1,4 @@
-import { defineConfig } from '@v6y/core';
+import { defineConfig } from 'v6y';
 
 export default defineConfig({
   // 'strict' turns on every rule, including the heuristic duplicate-label and

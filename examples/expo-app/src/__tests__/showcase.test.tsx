@@ -16,8 +16,8 @@ import path from 'path';
 import type { ComponentType, ReactNode } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { allRules, type Issue, type SnapshotReport } from '@v6y/core';
-import { V6yProvider, capture, configure } from '@v6y/react-native';
+import { allRules, type Issue, type SnapshotReport } from 'v6y';
+import { V6yProvider, capture, configure } from 'v6y/react-native';
 
 import config from '../../v6y.config';
 import { DemoScreen, FixedModeProvider } from '@/demo/FixedMode';

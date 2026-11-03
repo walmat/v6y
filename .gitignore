@@ -3,3 +3,4 @@ dist/
 *.tsbuildinfo
 .v6y/
 .DS_Store
+packages/v6y/README.md

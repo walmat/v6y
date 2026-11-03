@@ -20,14 +20,14 @@ v6y · menu  ios · 9:41:02 AM
 ## Setup: one line
 
 ```sh
-npm i -D @v6y/metro @v6y/react-native @v6y/core
+npm i -D v6y
 npx v6y init        # writes v6y.config.ts (optional)
 ```
 
 ```js
 // metro.config.js
 const { getDefaultConfig } = require('expo/metro-config'); // or '@react-native/metro-config'
-const { withV6y } = require('@v6y/metro');
+const { withV6y } = require('v6y/metro');
 
 module.exports = withV6y(getDefaultConfig(__dirname));
 ```
@@ -36,18 +36,18 @@ Start your app as usual and navigate around. Each screen is audited once it sett
 
 In development builds, `withV6y` does four things:
 1. Adds the Babel plugin to app code (not `node_modules`), so issues point at `file:line`.
-2. Imports `@v6y/react-native/auto` at the top of the entry file. That wraps the root via `AppRegistry` and tracks the focused React Navigation / Expo Router screen.
+2. Imports `v6y/auto` at the top of the entry file. That wraps the root via `AppRegistry` and tracks the focused React Navigation / Expo Router screen.
 3. Bundles `v6y.config.ts` into the app, so in-app audits use your rules.
 4. Receives reports on the Metro dev server and saves them to `.v6y/snapshots/` for CI.
 
 **Production bundles are untouched.**
 
-Without Metro integration, add the Babel plugin yourself, put `import '@v6y/react-native/auto'` at the top of your entry file, and run `npx v6y dev`.
+Without Metro integration, add the Babel plugin (`v6y/babel`) yourself, put `import 'v6y/auto'` at the top of your entry file, and run `npx v6y dev`.
 
 ## Configuration: `v6y.config.ts`
 
 ```ts
-import { defineConfig } from '@v6y/core';
+import { defineConfig } from 'v6y';
 
 export default defineConfig({
   extends: 'recommended',            // 'recommended' | 'strict' | 'wcag21-aa' | 'wcag22-aa'
@@ -124,15 +124,19 @@ The comment applies to the next element and everything it renders. Leave out rul
 npx v6y check .v6y/snapshots/*.json    # re-audits with v6y.config.ts; exit code follows failOn
 ```
 
-## Packages
+## What's in the package
 
-| Package | What it does |
+One install, `v6y`, with these entry points:
+
+| Import | What it does |
 |---|---|
-| `@v6y/core` | Rules, presets, config and the audit engine. Pure TypeScript, so it runs in the app, Node and CI. |
-| `@v6y/metro` | `withV6y()` |
-| `@v6y/react-native` | Walks the live React tree, audits, reports |
-| `@v6y/babel-plugin` | Adds `file:line` stamps and handles `v6y-ignore` comments |
-| `@v6y/cli` | The `init`, `rules`, `check` and `dev` commands |
+| `v6y` | `defineConfig`, the rules, presets and audit engine. Pure TypeScript, so it runs in the app, Node and CI. |
+| `v6y/metro` | `withV6y()` for `metro.config.js` |
+| `v6y/react-native` | `<V6yProvider>`, `capture()`, `trackNavigation()`: walks the live React tree, audits, reports |
+| `v6y/babel` | The Babel plugin: `file:line` stamps and `v6y-ignore` comments |
+| `npx v6y` | The `init`, `rules`, `check` and `dev` commands |
+
+In this repository they're developed as separate workspace packages under `packages/` and bundled into `packages/v6y` by `npm run build`.
 
 ## Development
 

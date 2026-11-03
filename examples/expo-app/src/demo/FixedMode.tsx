@@ -7,7 +7,7 @@
 import { createContext, useContext, useState, type ComponentType, type ReactNode } from 'react';
 import { StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { capture } from '@v6y/react-native';
+import { capture } from 'v6y/react-native';
 
 import { colors } from './data';
 

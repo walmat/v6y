@@ -8,10 +8,11 @@
     "packages/babel-plugin",
     "packages/react-native",
     "packages/cli",
-    "packages/metro"
+    "packages/metro",
+    "packages/v6y"
   ],
   "scripts": {
-    "build": "tsc -b packages/core packages/babel-plugin packages/react-native packages/cli packages/metro",
+    "build": "tsc -b packages/core packages/babel-plugin packages/react-native packages/cli packages/metro && node packages/v6y/scripts/bundle.mjs",
     "test": "npm run build && vitest run",
     "clean": "rm -rf packages/*/dist packages/*/tsconfig.tsbuildinfo"
   },

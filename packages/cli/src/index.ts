@@ -201,7 +201,11 @@ export function formatRules(): string {
   return [bold(head), ...rows].join('\n');
 }
 
-const CONFIG_TEMPLATE = `import { defineConfig } from '@v6y/core';
+/** The package users import defineConfig from (rewritten to `v6y` in the published bundle). */
+const CONFIG_PACKAGE = '@v6y/core';
+const METRO_PACKAGE = '@v6y/metro';
+
+const CONFIG_TEMPLATE = `import { defineConfig } from '${CONFIG_PACKAGE}';
 
 export default defineConfig({
   // 'recommended' | 'strict' | 'wcag21-aa' (EU Accessibility Act, ADA Title II) | 'wcag22-aa'
@@ -228,7 +232,7 @@ export function init({ cwd = process.cwd() } = {}): number {
   if (wired) console.log(dim('metro.config.js already uses withV6y.'));
   else {
     console.log(`\nLast step: wrap your Metro config in ${metro ? path.basename(metro) : 'metro.config.js'}:\n`);
-    console.log(`  const { withV6y } = require('@v6y/metro');`);
+    console.log(`  const { withV6y } = require('${METRO_PACKAGE}');`);
     console.log(`  module.exports = withV6y(getDefaultConfig(__dirname));\n`);
   }
   console.log(dim('Then start your app as usual; issues appear in the Metro terminal as you navigate.'));

@@ -187,9 +187,33 @@ describe('field-test fixes', () => {
     const at = (line: number) => node({ interactive: true, frame: frame(48, 48), label: 'Go', source: src('src/Button.tsx', 9), ownerSources: [src('src/A.tsx', line)] });
     const two = audit(screen(node({ children: [at(1), at(2)] })));
     expect(two.every((i) => i.location?.file === 'src/Button.tsx' && !i.via)).toBe(true);
-    const three = audit(screen(node({ children: [at(1), at(2), at(3)] })));
+    // One use is fine, so the defect isn't inside Button: report at each call site.
+    const fine = node({ interactive: true, role: 'button', frame: frame(48, 48), label: 'Ok', source: src('src/Button.tsx', 9), ownerSources: [src('src/A.tsx', 4)] });
+    const three = audit(screen(node({ children: [at(1), at(2), at(3), fine] })));
     expect(three.map((i) => i.location?.line)).toEqual([1, 2, 3]);
-    expect(three.every((i) => i.via?.file === 'src/Button.tsx')).toBe(true);
+    expect(three.every((i) => i.via?.file === 'src/Button.tsx' && i.scope === 'call-site')).toBe(true);
+  });
+
+  it('reports a defect every use shares once, at the component, with its call sites', () => {
+    const at = (line: number) => node({ interactive: true, frame: frame(48, 48), label: 'Go', source: src('src/Menu.tsx', 9), ownerSources: [src('src/A.tsx', line)] });
+    const issues = audit(screen(node({ children: [at(1), at(2), at(3)] })));
+    expect(issues.every((i) => i.scope === 'component' && i.location?.file === 'src/Menu.tsx' && !i.via)).toBe(true);
+    expect(issues[0]?.callSites?.map((s) => s.line)).toEqual([1, 2, 3]);
+  });
+
+  it('never treats duplicate labels as a component defect', () => {
+    const edit = (line: number) => node({ interactive: true, role: 'button', label: 'Edit', frame: frame(48, 48), source: src('src/Button.tsx', 9), ownerSources: [src('src/Order.tsx', line)] });
+    const issues = audit(screen(node({ children: [node({ type: 'RCTText', role: 'header', text: 'T' }), edit(1), edit(2)] })), { extends: 'strict' });
+    expect(issues.map((i) => [i.ruleId, i.scope])).toEqual([['duplicate-label', 'call-site'], ['duplicate-label', 'call-site']]);
+  });
+
+  it('blames the wrapper when state a caller passed never reaches the native view', () => {
+    const tab = node({ interactive: true, role: 'tab', label: 'Dark', frame: frame(48, 48), state: { disabled: false }, droppedState: ['selected'], source: src('src/components/Button.tsx', 577), ownerSources: [src('src/screens/Appearance.tsx', 221)] });
+    const [issue] = audit(screen(tab));
+    expect(issue?.ruleId).toBe('state-not-exposed');
+    expect(issue?.scope).toBe('component');
+    expect(issue?.location?.file).toBe('src/components/Button.tsx');
+    expect(issue?.message).toMatch(/passes accessibilityState.selected, but a wrapper component drops it/);
   });
 
   it('does not double-report an image inside a labelled pressable', () => {

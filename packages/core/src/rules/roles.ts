@@ -76,6 +76,16 @@ export const stateNotExposed = defineRule({
     if (node.state?.[key] !== undefined) return [];
     // VoiceOver announces "selected" for radios too.
     if (node.role === 'radio' && node.state?.selected !== undefined) return [];
+    const dropped = node.droppedState?.filter((k) => k === key || (node.role === 'radio' && k === 'selected'));
+    if (dropped?.length) {
+      return [
+        {
+          scope: 'component',
+          message: `${describeNode(node)} has role "${node.role}". Its caller passes accessibilityState.${dropped[0]}, but a wrapper component drops it before it reaches the native view.`,
+          fix: `Merge the caller's accessibilityState in the wrapper (e.g. {...props.accessibilityState, disabled}) instead of replacing it.`,
+        },
+      ];
+    }
     return [
       {
         message: `${describeNode(node)} has role "${node.role}" but doesn't expose whether it's ${key}.`,

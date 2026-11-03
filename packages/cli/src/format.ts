@@ -45,7 +45,8 @@ export function formatIssues(issues: Issue[], { screenHeadings = true } = {}): s
         : dim('(no source: is withV6y() in metro.config.js?)');
       out.push(`  ${icon}${times} ${i.message}`);
       out.push(`    ${dim('at')} ${where} ${dim(`[${i.ruleId}, WCAG ${i.wcag.join(', ')}]`)}`);
-      if (usedAt.length) out.push(`    ${dim('used at')} ${formatSites(usedAt)}`);
+      if (i.scope === 'component') out.push(`    ${dim('inside this shared component; fix it once. Used at')} ${formatSites(usedAt)}`);
+      else if (usedAt.length) out.push(`    ${dim('used at')} ${formatSites(usedAt)}`);
       if (i.fix) out.push(`    ${green('fix:')} ${i.fix}`);
     }
   }

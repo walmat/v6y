@@ -90,6 +90,13 @@ export interface A11yNode {
   /** accessibilityLabelledBy / aria-labelledby: the nativeID of a visible label. */
   labelledBy?: string;
 
+  /**
+   * State keys (e.g. "selected") that a component above this node received in
+   * its props but that never reached this native view: a wrapper dropped or
+   * overwrote them.
+   */
+  droppedState?: string[];
+
   /** Inline `v6y-ignore` comments that apply to this node (inherited from enclosing elements). */
   ignore?: InlineIgnore[];
 
@@ -132,6 +139,13 @@ export interface Issue {
    */
   location?: SourceLocation;
   via?: SourceLocation;
+  /**
+   * "component": the defect is inside the shared component (every use has it,
+   * or it drops what callers pass), so it's reported once at the component and
+   * `callSites` lists where it's used. "call-site": fix it where it's used.
+   */
+  scope?: 'component' | 'call-site';
+  callSites?: SourceLocation[];
   /** Short, concrete suggestion for fixing it. */
   fix?: string;
   /** Set when an inline comment or config `ignore` silenced this issue. */

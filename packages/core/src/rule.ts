@@ -28,6 +28,8 @@ export interface Finding {
   advisory?: boolean;
   /** Overrides the rule's WCAG criteria for this finding (e.g. AAA contrast is 1.4.6). */
   wcag?: string[];
+  /** The rule knows the defect is inside the component that rendered the node. */
+  scope?: 'component';
 }
 
 export interface ScreenFinding extends Finding {

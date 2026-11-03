@@ -60,6 +60,8 @@ interface Composite {
   name?: string;
   source?: SourceLocation;
   raw?: string;
+  /** Accessibility state keys this component received in its props. */
+  stateKeys?: string[];
 }
 
 export function parseSource(value: unknown): SourceLocation | undefined {
@@ -111,6 +113,8 @@ function readState(p: any): A11yState | undefined {
   if (p['aria-checked'] !== undefined) s.checked = p['aria-checked'];
   if (p['aria-expanded'] !== undefined) s.expanded = !!p['aria-expanded'];
   if (p['aria-busy'] !== undefined) s.busy = !!p['aria-busy'];
+  // React Native's Pressable passes every key, mostly as undefined: only real values count.
+  for (const k of Object.keys(s) as (keyof A11yState)[]) if (s[k] === undefined) delete s[k];
   return Object.keys(s).length ? s : undefined;
 }
 
@@ -300,6 +304,10 @@ export async function collect(rootFiber: Fiber, options: CollectOptions = {}): P
       if (typeof p.accessibilityHint === 'string') node.hint = p.accessibilityHint;
       const state = readState(p);
       if (state) node.state = state;
+      // State a component above received but that never reached the native view.
+      const received = new Set(composites.flatMap((c) => c.stateKeys ?? []));
+      const dropped = [...received].filter((k) => state?.[k as keyof A11yState] === undefined);
+      if (dropped.length) node.droppedState = dropped;
       const accessible = p.accessible ?? p.focusable;
       if (typeof accessible === 'boolean') node.accessible = accessible;
       if (ctx.hidden || isHidden(type, p, flat)) node.hidden = true;
@@ -356,8 +364,14 @@ export async function collect(rootFiber: Fiber, options: CollectOptions = {}): P
       const forwarded = raw !== undefined && lastStamped?.raw === raw;
       const source = forwarded ? undefined : parseSource(raw);
       const ignore = forwarded ? undefined : parseIgnore(props?.[IGNORE_PROP], source);
+      const passed = readState(props ?? {});
       next = {
-        composites: composites.concat({ name: componentName(f.type), source, raw: forwarded ? undefined : raw }),
+        composites: composites.concat({
+          name: componentName(f.type),
+          source,
+          raw: forwarded ? undefined : raw,
+          stateKeys: passed ? Object.keys(passed) : undefined,
+        }),
         ignores: ignore ? ctx.ignores.concat(ignore) : ctx.ignores,
         hidden: ctx.hidden || isUnfocusedScreen(props),
         inherited: ctx.inherited,

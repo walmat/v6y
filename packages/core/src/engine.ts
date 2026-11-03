@@ -21,6 +21,7 @@ export function auditScreen(snapshot: ScreenSnapshot, config?: V6yConfig | Resol
   const visible: A11yNode[] = [];
 
   const toIssue = (id: string, level: Severity, wcag: string[], node: A11yNode, f: Finding): Issue => ({
+    ...(f.scope ? { scope: f.scope } : {}),
     ruleId: id,
     severity: f.advisory ? 'warning' : level,
     message: f.message,
@@ -57,6 +58,7 @@ export function auditScreen(snapshot: ScreenSnapshot, config?: V6yConfig | Resol
   }
 
   assignLocations(all, cfg);
+  assignScopes(all, visible);
   const issues = all.filter((i) => !i.suppressed).sort((a, b) => rank(a.severity) - rank(b.severity));
   const suppressed = all.filter((i) => i.suppressed);
   for (const i of issues) delete i.suppressed;
@@ -67,6 +69,9 @@ export function auditScreen(snapshot: ScreenSnapshot, config?: V6yConfig | Resol
 export function audit(snapshot: ScreenSnapshot, config?: V6yConfig | ResolvedConfig): Issue[] {
   return auditScreen(snapshot, config).issues;
 }
+
+/** Rules whose findings depend on content callers pass in, never on the component itself. */
+const CALLER_RULES = new Set(['duplicate-label']);
 
 /** Distinct call sites at which a shared component's issues move to the call site. */
 const AUTO_CALL_SITES = 3;
@@ -101,6 +106,47 @@ function assignLocations(issues: Issue[], cfg: ResolvedConfig) {
       i.via = i.source;
     } else {
       i.location = i.source;
+    }
+  }
+}
+
+/**
+ * Marks issues whose fix belongs inside a shared component: the rule said so
+ * (e.g. a wrapper dropping state), or every element that component line renders
+ * on the screen has the same issue and it's used from 2+ call sites. Those are
+ * reported once at the component, with the call sites listed; everything else
+ * is a call-site issue.
+ */
+function assignScopes(issues: Issue[], visible: readonly A11yNode[]) {
+  // A component's call sites are its immediate callers: further-out app files can
+  // collapse many callers into one (e.g. everything rendered through a portal).
+  const appSite = (i: Issue) => i.ownerSources?.[0];
+  const rendered = new Map<string, number>();
+  for (const n of visible) if (n.source) rendered.set(loc(n.source), (rendered.get(loc(n.source)) ?? 0) + 1);
+
+  const groups = new Map<string, Issue[]>();
+  for (const i of issues) {
+    // Duplicate names come from what callers pass, so they're always call-site issues.
+    if (!i.source || CALLER_RULES.has(i.ruleId)) {
+      if (i.scope !== 'component') i.scope = 'call-site';
+      continue;
+    }
+    const k = `${i.ruleId}|${loc(i.source)}`;
+    groups.set(k, [...(groups.get(k) ?? []), i]);
+  }
+  for (const group of groups.values()) {
+    const sites = [...new Map(group.map(appSite).filter(Boolean).map((s) => [loc(s!), s!] as const)).values()];
+    const nodes = new Set(group.map((i) => i.nodeId)).size;
+    const uniform = nodes === rendered.get(loc(group[0]!.source)) && sites.length >= 2;
+    for (const i of group) {
+      if (i.scope === 'component' || uniform) {
+        i.scope = 'component';
+        i.location = i.source;
+        delete i.via;
+        if (sites.length) i.callSites = sites;
+      } else {
+        i.scope = 'call-site';
+      }
     }
   }
 }
@@ -145,8 +191,8 @@ export function groupIssues(issues: Issue[]): IssueGroup[] {
     if (!g) groups.set(key, (g = { issue: i, count: 0, usedAt: [] }));
     g.count++;
     // Issues already moved to their call site don't need a "used at" list.
-    const site = i.via ? undefined : i.ownerSources?.[0];
-    if (site && !g.usedAt.some((u) => loc(u) === loc(site))) g.usedAt.push(site);
+    const sites = i.callSites ?? (i.via || !i.ownerSources?.[0] ? [] : [i.ownerSources[0]]);
+    for (const site of sites) if (!g.usedAt.some((u) => loc(u) === loc(site))) g.usedAt.push(site);
   }
   return [...groups.values()];
 }

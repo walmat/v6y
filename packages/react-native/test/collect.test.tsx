@@ -207,5 +207,30 @@ describe('collect', () => {
     const issues = audit({ screen: 'Home', platform: 'ios', root: tree }, { designSystem: ['src/components/**'] });
     expect(issues.every((i) => i.location?.file === 'src/screens/Home.tsx')).toBe(true);
   });
+
+  it('records accessibility state a wrapper dropped', async () => {
+    // Like Bluesky's Button: spreads props, then overwrites accessibilityState with {disabled}.
+    function Button({ accessibilityState: _ignored, ...rest }: any) {
+      return h(Pressable, { ...rest, accessibilityRole: 'tab', accessibilityState: { disabled: false }, onPress: () => {} });
+    }
+    const tree = await snapshotOf(h(Button, { accessibilityState: { selected: true } }));
+    const tab = find(tree, (n) => n.role === 'tab')!;
+    expect(tab.droppedState).toEqual(['selected']);
+  });
+
+  it('ignores undefined state keys (React Native Pressable passes them all)', async () => {
+    function Tab(_: any) {
+      return h(RCTView, { accessibilityState: { busy: undefined, selected: undefined, disabled: false } }, h(Pressable, { onPress: () => {}, accessibilityRole: 'tab', accessibilityState: { disabled: false } }));
+    }
+    function Wrapper(_: any) {
+      return h(Pressable, { onPress: () => {}, accessibilityRole: 'tab', accessibilityState: { selected: undefined, checked: undefined, disabled: false } });
+    }
+    const tree = await snapshotOf(h(RCTView, null, h(Tab), h(Wrapper)));
+    const tabs: A11yNode[] = [];
+    const all = (n: A11yNode) => { if (n.role === 'tab') tabs.push(n); n.children.forEach(all); };
+    all(tree);
+    expect(tabs.every((t) => !t.droppedState)).toBe(true);
+    expect(tabs.every((t) => t.state && !('selected' in t.state))).toBe(true);
+  });
 });
 

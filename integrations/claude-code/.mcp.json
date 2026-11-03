@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "v6y": {
+      "command": "sh",
+      "args": ["-c", "cd \"${CLAUDE_PROJECT_DIR:-.}\" && exec npx --no-install v6y mcp"]
+    }
+  }
+}

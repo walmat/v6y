@@ -1,0 +1,10 @@
+{
+  "name": "v6y",
+  "version": "0.1.0",
+  "description": "Accessibility checks for React Native: Claude checks the screens it edits and fixes issues before committing.",
+  "author": { "name": "walmat" },
+  "license": "MIT",
+  "homepage": "https://github.com/walmat/v6y",
+  "repository": "https://github.com/walmat/v6y",
+  "keywords": ["react-native", "expo", "accessibility", "a11y", "wcag"]
+}

@@ -4,7 +4,7 @@ import path from 'path';
 import { pathToFileURL } from 'url';
 import { createRequire } from 'module';
 import { execFile, execFileSync } from 'child_process';
-import { ChangedOptions, changedFiles, coverage, githubAnnotations, issueFiles, touchesChange } from './changed';
+import { ChangeSet, ChangedOptions, Coverage, changedFiles, coverage, githubAnnotations, issueFiles, touchesChange } from './changed';
 import {
   Issue,
   ScreenSnapshot,
@@ -105,10 +105,21 @@ export interface CheckOptions {
   changed?: ChangedOptions | boolean;
 }
 
-/** `v6y check <files…>`: re-audits saved snapshots with the project config. Returns the exit code. */
-export async function check(files: string[], options: CheckOptions = {}): Promise<number> {
+export interface Analysis {
+  issues: Issue[];
+  /** Issues before filtering to the change. */
+  total: number;
+  suppressed: number;
+  skippedStale: number;
+  change?: ChangeSet;
+  cover?: Coverage;
+  failed: boolean;
+  snapshots: number;
+}
+
+/** Re-audits saved snapshots with the project config, optionally limited to a change. No output. */
+export async function analyze(files: string[], options: Pick<CheckOptions, 'cwd' | 'changed'> = {}): Promise<Analysis> {
   const cwd = options.cwd ?? process.cwd();
-  const format = options.format ?? (options.json ? 'json' : 'text');
   const config = resolveConfig(await loadConfig(cwd));
   const snapshots: ScreenSnapshot[] = [];
   for (const f of files) {
@@ -138,30 +149,44 @@ export async function check(files: string[], options: CheckOptions = {}): Promis
   }
   const total = issues.length;
   if (change) issues = issues.filter((i) => touchesChange(i, change));
+  return { issues, total, suppressed, skippedStale, change, cover, failed: shouldFail(issues, config), snapshots: snapshots.length };
+}
 
-  if (format === 'json') {
-    console.log(JSON.stringify(issues, null, 2));
-  } else {
-    if (format === 'github') {
-      for (const line of githubAnnotations(groupIssues(issues).map((g) => g.issue), change?.prefix ?? gitPrefix(cwd))) console.log(line);
+/** The human-readable report for an analysis (what `v6y check` prints). */
+export function renderAnalysis(a: Analysis): string {
+  const out: string[] = [];
+  if (a.change) {
+    const n = a.change.files.size;
+    out.push(dim(`Checking ${a.change.description}: ${n} changed file${n === 1 ? '' : 's'}, ${a.issues.length} of ${a.total} issues touch them.`));
+  }
+  out.push(formatIssues(a.issues));
+  if (a.suppressed) out.push(dim(`${a.suppressed} suppressed by v6y-ignore comments or config.`));
+  if (a.cover) {
+    for (const s of a.cover.stale) {
+      out.push(yellow(`⚠ Snapshot "${s.screen}" is older than your edits to ${s.files.join(', ')}. Re-open that screen or re-run its test.`));
     }
-    if (change) {
-      console.log(dim(`Checking ${change.description}: ${change.files.size} changed file${change.files.size === 1 ? '' : 's'}, ${issues.length} of ${total} issues touch them.`));
-    }
-    console.log(formatIssues(issues));
-    if (suppressed) console.log(dim(`${suppressed} suppressed by v6y-ignore comments or config.`));
-    if (change && cover) {
-      const { stale, uncovered } = cover;
-      for (const s of stale) {
-        console.log(yellow(`⚠ Snapshot "${s.screen}" is older than your edits to ${s.files.join(', ')}. Re-open that screen or re-run its test.`));
-      }
-      if (skippedStale) console.log(dim(`${skippedStale} issue${skippedStale === 1 ? '' : 's'} from stale snapshots skipped (their line numbers are out of date).`));
-      if (uncovered.length) {
-        console.log(yellow(`⚠ No snapshot renders ${uncovered.join(', ')}. Open those screens in the app or add a toBeAccessible() test.`));
-      }
+    if (a.skippedStale) out.push(dim(`${a.skippedStale} issue${a.skippedStale === 1 ? '' : 's'} from stale snapshots skipped (their line numbers are out of date).`));
+    if (a.cover.uncovered.length) {
+      out.push(yellow(`⚠ No snapshot renders ${a.cover.uncovered.join(', ')}. Open those screens in the app or add a toBeAccessible() test.`));
     }
   }
-  return shouldFail(issues, config) ? 1 : 0;
+  return out.join('\n');
+}
+
+/** `v6y check <files…>`: re-audits saved snapshots with the project config. Returns the exit code. */
+export async function check(files: string[], options: CheckOptions = {}): Promise<number> {
+  const cwd = options.cwd ?? process.cwd();
+  const format = options.format ?? (options.json ? 'json' : 'text');
+  const a = await analyze(files, { cwd, changed: options.changed });
+  if (format === 'json') {
+    console.log(JSON.stringify(a.issues, null, 2));
+  } else {
+    if (format === 'github') {
+      for (const line of githubAnnotations(groupIssues(a.issues).map((g) => g.issue), a.change?.prefix ?? gitPrefix(cwd))) console.log(line);
+    }
+    console.log(renderAnalysis(a));
+  }
+  return a.failed ? 1 : 0;
 }
 
 function gitPrefix(cwd: string): string {

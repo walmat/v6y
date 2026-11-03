@@ -1,0 +1,12 @@
+{
+  "name": "v6y",
+  "owner": { "name": "walmat" },
+  "description": "Accessibility tooling for React Native",
+  "plugins": [
+    {
+      "name": "v6y",
+      "source": "./integrations/claude-code",
+      "description": "Claude checks the React Native screens it edits for accessibility issues and fixes them before committing."
+    }
+  ]
+}

@@ -72,6 +72,17 @@ v6y found 9 accessibility issues:
 - **Types:** add `"v6y/jest"` to `compilerOptions.types` in `tsconfig.json`.
 - **Limits:** tests have no layout engine, so touch-target sizes are only checked where you set an explicit `width`/`height`.
 
+## With coding agents
+
+Coding agents can check the screens they edit: `npx v6y mcp` is an MCP server for Claude Code, Codex, Cursor and others. For Claude Code there's a plugin with the server, a skill and a commit gate:
+
+```
+/plugin marketplace add walmat/v6y
+/plugin install v6y@v6y
+```
+
+Setup for other agents, and an `AGENTS.md` snippet: [docs/agents.md](./docs/agents.md).
+
 ## Configuration: `v6y.config.ts`
 
 ```ts

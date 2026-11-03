@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { DEFAULT_PORT, check, dev, formatRules, init } from './index';
+import { serveMcp } from './mcp';
 
 const HELP = `v6y — accessibility auditing for React Native
 
@@ -12,6 +13,7 @@ Usage:
       --base <ref>                      Only issues in files changed since <ref> (e.g. origin/main)
       --format text|json|github         github: annotate the PR's lines in GitHub Actions
   v6y dev [--port ${DEFAULT_PORT}]        Standalone report server (only needed without withV6y)
+  v6y mcp                               MCP server for coding agents (Claude Code, Codex, Cursor…)
   v6y help
 `;
 
@@ -31,6 +33,12 @@ async function main(argv: string[]): Promise<number | undefined> {
     case 'rules':
       console.log(formatRules());
       return 0;
+    case 'mcp': {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { version } = require('../package.json');
+      serveMcp({ version });
+      return undefined; // keep running
+    }
     case 'dev':
       dev({ port: Number(option('--port') ?? DEFAULT_PORT) });
       return undefined; // keep running

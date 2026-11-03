@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { DEFAULT_PORT, check, dev, formatRules, init } from './index';
 import { serveMcp } from './mcp';
+import { fix, renderFix } from './fix';
 
 const HELP = `v6y — accessibility auditing for React Native
 
@@ -13,6 +14,8 @@ Usage:
       --base <ref>                      Only issues in files changed since <ref> (e.g. origin/main)
       --format text|json|github         github: annotate the PR's lines in GitHub Actions
   v6y dev [--port ${DEFAULT_PORT}]        Standalone report server (only needed without withV6y)
+  v6y fix <snapshot.json…> [--dry-run]  Write mechanical fixes into source (roles, hitSlop, headings,
+                                        font scaling); list the rest. Takes --changed/--staged/--base too
   v6y mcp                               MCP server for coding agents (Claude Code, Codex, Cursor…)
   v6y help
 `;
@@ -33,6 +36,18 @@ async function main(argv: string[]): Promise<number | undefined> {
     case 'rules':
       console.log(formatRules());
       return 0;
+    case 'fix': {
+      if (!positional.length) {
+        console.error('v6y fix: pass one or more snapshot files, e.g. .v6y/snapshots/*.json');
+        return 2;
+      }
+      const base = option('--base');
+      const staged = rest.includes('--staged');
+      const changed = rest.includes('--changed') || staged || base ? { base, staged } : undefined;
+      const dryRun = rest.includes('--dry-run');
+      console.log(renderFix(await fix(positional, { changed, dryRun }), dryRun));
+      return 0;
+    }
     case 'mcp': {
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const { version } = require('../package.json');

@@ -7,6 +7,7 @@ It works through an MCP server, `npx v6y mcp`, that any MCP-capable agent can us
 | Tool | What it does |
 |---|---|
 | `check_accessibility` | Issues in the files changed in the working tree (or since `base`, or staged), each with `file:line`, a fix and a docs link. Warns when a snapshot is older than the edits. |
+| `fix_accessibility` | Applies the mechanical fixes in source (roles, `hitSlop`, headings, font scaling) and lists what still needs the agent: labels, image descriptions, colours, structure, state. |
 | `explain_rule` | A rule's page: why it matters, how to fix it, before/after code, options. |
 | `list_rules` | Every rule, its level in each preset and its WCAG criteria. |
 

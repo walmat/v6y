@@ -8,6 +8,7 @@ import path from 'path';
 import readline from 'readline';
 import { allRules, globToRegExp, renderRuleDoc, rulesById, RuleId } from '@v6y/core';
 import { analyze, formatRules, renderAnalysis } from './index';
+import { fix, renderFix } from './fix';
 
 export const DEFAULT_SNAPSHOTS = '.v6y/snapshots/*.json';
 
@@ -16,7 +17,8 @@ const INSTRUCTIONS = `v6y checks React Native screens for accessibility issues: 
 After you change a screen or component:
 1. Refresh snapshots: run the project's tests with V6Y_SNAPSHOTS=.v6y/snapshots (tests that call expect(...).toBeAccessible() record them), or, if the app is running with withV6y(), open the screen.
 2. Call check_accessibility. By default it reports only issues in files you changed, each with file:line, a suggested fix and a docs link.
-3. Fix the issues and check again. Use explain_rule for background on a rule.
+3. Call fix_accessibility to apply the mechanical fixes (roles, hitSlop, headings, font scaling), then fix what it lists for you: labels, image descriptions, colours, structure, state.
+4. Re-run the tests and check again. Use explain_rule for background on a rule.
 
 Never silence an issue with a v6y-ignore comment unless the element is genuinely not user-facing, and always give the reason after "--".`;
 
@@ -31,6 +33,21 @@ const TOOLS = [
         changedOnly: { type: 'boolean', description: 'Only issues in changed files (default true).', default: true },
         base: { type: 'string', description: 'Compare against this git ref instead of uncommitted changes, e.g. "origin/main".' },
         staged: { type: 'boolean', description: 'Only staged changes (like a pre-commit hook).' },
+        snapshots: { type: 'string', description: `Glob of snapshot files (default "${DEFAULT_SNAPSHOTS}").` },
+        projectDir: { type: 'string', description: 'The React Native project directory, if it is not the current one.' },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'fix_accessibility',
+    description:
+      'Apply the mechanical accessibility fixes v6y can make safely (missing roles, small touch targets via hitSlop, titles not marked as headings, disabled font scaling) directly in source, and list the issues that still need you: labels, image descriptions, colours, structure, state. Defaults to changed files. Review the diff afterwards.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        changedOnly: { type: 'boolean', description: 'Only issues in changed files (default true).', default: true },
+        dryRun: { type: 'boolean', description: 'Report what would change without writing.' },
         snapshots: { type: 'string', description: `Glob of snapshot files (default "${DEFAULT_SNAPSHOTS}").` },
         projectDir: { type: 'string', description: 'The React Native project directory, if it is not the current one.' },
       },
@@ -123,6 +140,21 @@ export async function callTool(name: string, args: Record<string, unknown> = {},
           })),
           staleSnapshots: a.cover?.stale ?? [],
           uncoveredFiles: a.cover?.uncovered ?? [],
+        },
+      };
+    }
+    case 'fix_accessibility': {
+      if (typeof args.projectDir === 'string' && args.projectDir) cwd = path.resolve(cwd, args.projectDir);
+      const pattern = typeof args.snapshots === 'string' ? args.snapshots : DEFAULT_SNAPSHOTS;
+      const files = expandGlob(pattern, cwd);
+      if (!files.length) return text(`No v6y snapshots match ${pattern}. Run the tests with V6Y_SNAPSHOTS=.v6y/snapshots first.`);
+      const r = await fix(files, { cwd, changed: args.changedOnly === false ? undefined : true, dryRun: args.dryRun === true });
+      return {
+        content: [{ type: 'text', text: renderFix(r, args.dryRun === true) }],
+        structuredContent: {
+          applied: r.applied,
+          manual: r.manual.map(({ issue, why }) => ({ rule: issue.ruleId, why, location: issue.location ?? issue.source, message: issue.message, fix: issue.fix })),
+          skipped: r.skipped,
         },
       };
     }

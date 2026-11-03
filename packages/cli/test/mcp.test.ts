@@ -71,7 +71,7 @@ describe('MCP protocol', () => {
     expect(init.result).toMatchObject({ protocolVersion: '2025-06-18', serverInfo: { name: 'v6y' }, capabilities: { tools: {} } });
     expect(init.result.instructions).toMatch(/check_accessibility/);
     const list: any = await handleMessage({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
-    expect(list.result.tools.map((t: any) => t.name)).toEqual(['check_accessibility', 'explain_rule', 'list_rules']);
+    expect(list.result.tools.map((t: any) => t.name)).toEqual(['check_accessibility', 'fix_accessibility', 'explain_rule', 'list_rules']);
     expect(await handleMessage({ jsonrpc: '2.0', method: 'notifications/initialized' })).toBeUndefined();
     expect(((await handleMessage({ jsonrpc: '2.0', id: 3, method: 'nope' })) as any).error.code).toBe(-32601);
   });

@@ -72,6 +72,29 @@ v6y found 9 accessibility issues:
 - **Types:** add `"v6y/jest"` to `compilerOptions.types` in `tsconfig.json`.
 - **Limits:** tests have no layout engine, so touch-target sizes are only checked where you set an explicit `width`/`height`.
 
+## Fix automatically
+
+`v6y fix` writes the fixes that need no judgment straight into your source, as a normal diff to review:
+
+```sh
+npx v6y fix .v6y/snapshots/*.json            # or --changed / --staged / --base main, and --dry-run
+```
+
+```
+Fixed 12 issues:
+  ✓ src/components/IconButton.tsx:23  add accessibilityRole="button"  [missing-role]
+  ✓ src/components/IconButton.tsx:23  add hitSlop={8} (48pt target on iOS and Android)  [touch-target-size]
+  ✓ src/screens/Account.tsx:15  mark the title as a heading  [missing-heading]
+  ✓ src/screens/Product.tsx:23  remove allowFontScaling={false}  [font-scaling-disabled]
+  …
+14 need a person or your coding agent:
+  • src/components/IconButton.tsx:23  needs a label that says what it does  [missing-label]
+  • src/screens/Order.tsx:39  needs accessibilityState wired to the component state  [state-not-exposed]
+  …
+```
+
+It fixes missing roles, small touch targets (via `hitSlop`), titles not marked as headings, and disabled font scaling. It never guesses what a button does or what an image shows: those go to a person, or to your coding agent through `fix_accessibility`. It won't edit a file that changed since its snapshot was taken. On the example app's broken screens it takes 34 issues to 19, and what's left is the judgment calls.
+
 ## With coding agents
 
 Coding agents can check the screens they edit: `npx v6y mcp` is an MCP server for Claude Code, Codex, Cursor and others. For Claude Code there's a plugin with the server, a skill and a commit gate:

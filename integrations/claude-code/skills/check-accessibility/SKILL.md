@@ -13,7 +13,7 @@ v6y audits what React Native screens expose to screen readers and reports issues
    - Preferred: run the tests that render them with `V6Y_SNAPSHOTS=.v6y/snapshots` set, for example `V6Y_SNAPSHOTS=.v6y/snapshots npx jest path/to/Screen.test.tsx`. Tests that call `await expect(…).toBeAccessible()` record snapshots.
    - If a changed screen has no test, add one: `await expect(<Screen />).toBeAccessible();` (the project's Jest setup needs `setupFilesAfterEnv: ['v6y/jest']`).
 2. **Check** with the `check_accessibility` tool (it reports only issues in files you changed). Without the MCP server, run `npx v6y check .v6y/snapshots/*.json --changed`.
-3. **Fix** each issue at the reported `file:line`, following its `fix:` line. Use `explain_rule` for background.
+3. **Fix**: call `fix_accessibility` (or `npx v6y fix .v6y/snapshots/*.json --changed`) to apply the mechanical fixes, then fix what it lists for you at each `file:line`: labels, image descriptions, colours, structure and state. Use `explain_rule` for background.
 4. **Repeat** until the check passes. Then commit.
 
 ## How to fix well

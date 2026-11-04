@@ -1,0 +1,756 @@
+diff --git a/__v6y__/empty.js b/__v6y__/empty.js
+new file mode 100644
+index 0000000..4ba52ba
+--- /dev/null
++++ b/__v6y__/empty.js
+@@ -0,0 +1 @@
++module.exports = {}
+diff --git a/__v6y__/fakeBackend.ts b/__v6y__/fakeBackend.ts
+new file mode 100644
+index 0000000..2658513
+--- /dev/null
++++ b/__v6y__/fakeBackend.ts
+@@ -0,0 +1,224 @@
++/* LOCAL ONLY (v6y field test): a tiny fake PDS/AppView so the logged-in app renders offline. */
++import * as persisted from '#/state/persisted'
++
++export const DID = 'did:plc:v6yfieldtestuser00000000'
++const OTHER = 'did:plc:v6yfieldtestother0000000'
++const NOW = new Date('2026-11-01T12:00:00.000Z').toISOString()
++const b64u = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url')
++const jwt = (scope: string) =>
++  `${b64u({alg: 'ES256K', typ: 'at+jwt'})}.${b64u({scope, sub: DID, aud: 'did:web:bsky.social', iat: 1700000000, exp: 4102444800})}.c2ln`
++
++export const account = {
++  service: 'https://bsky.social/',
++  did: DID,
++  handle: 'alice.test',
++  email: 'alice@example.com',
++  emailConfirmed: true,
++  emailAuthFactor: false,
++  accessJwt: jwt('com.atproto.access'),
++  refreshJwt: jwt('com.atproto.refresh'),
++  active: true,
++  pdsUrl: 'https://pds.example.com',
++  isSelfHosted: false,
++}
++
++export async function seedSession() {
++  await persisted.write('session', {accounts: [account], currentAccount: {did: DID}} as any)
++}
++
++const CID = 'bafyreiew5lec7zcc2kozuzwumjelzfvbg37xc5oj3ofjbw55ymrplfz3dq'
++const actor = (did: string, handle: string, displayName: string) => ({
++  did,
++  handle,
++  displayName,
++  avatar: 'https://cdn.example.com/avatar.jpg',
++  viewer: {muted: false, blockedBy: false},
++  labels: [],
++  createdAt: NOW,
++  indexedAt: NOW,
++})
++const alice = actor(DID, 'alice.test', 'Alice')
++const bob = actor(OTHER, 'bob.test', 'Bob 🦋')
++
++const profile = (a: any) => ({
++  ...a,
++  description: 'Hello, I test accessibility.',
++  banner: 'https://cdn.example.com/banner.jpg',
++  followersCount: 12,
++  followsCount: 34,
++  postsCount: 5,
++  associated: {lists: 0, feedgens: 0, starterPacks: 0, labeler: false},
++})
++
++let n = 0
++const post = (author: any, text: string, extra: any = {}) => {
++  const rkey = `3kv6y${(n++).toString().padStart(8, '0')}`
++  return {
++    uri: `at://${author.did}/app.bsky.feed.post/${rkey}`,
++    cid: CID,
++    author,
++    record: {$type: 'app.bsky.feed.post', text, createdAt: NOW, langs: ['en'], ...(extra.record ?? {})},
++    ...(extra.embed ? {embed: extra.embed} : {}),
++    replyCount: 2,
++    repostCount: 3,
++    likeCount: 4,
++    quoteCount: 1,
++    bookmarkCount: 0,
++    indexedAt: NOW,
++    viewer: {threadMuted: false, embeddingDisabled: false},
++    labels: [],
++  }
++}
++
++const imagePost = () =>
++  post(bob, 'A photo of my cat', {
++    record: {
++      embed: {
++        $type: 'app.bsky.embed.images',
++        images: [{alt: '', image: {$type: 'blob', ref: {$link: CID}, mimeType: 'image/jpeg', size: 1000}, aspectRatio: {width: 4, height: 3}}],
++      },
++    },
++    embed: {
++      $type: 'app.bsky.embed.images#view',
++      images: [{thumb: 'https://cdn.example.com/t.jpg', fullsize: 'https://cdn.example.com/f.jpg', alt: '', aspectRatio: {width: 4, height: 3}}],
++    },
++  })
++const linkPost = () =>
++  post(alice, 'Read this https://example.com/article', {
++    embed: {
++      $type: 'app.bsky.embed.external#view',
++      external: {uri: 'https://example.com/article', title: 'An article', description: 'About things', thumb: 'https://cdn.example.com/x.jpg'},
++    },
++  })
++
++export const posts = () => (n = 0, [post(bob, 'Hello world from Bob! #a11y'), imagePost(), linkPost(), post(alice, 'My own post')])
++
++const feedGen = {
++  uri: `at://${OTHER}/app.bsky.feed.generator/cats`,
++  cid: CID,
++  did: 'did:web:feeds.example.com',
++  creator: bob,
++  displayName: 'Cats',
++  description: 'Cat pictures',
++  avatar: 'https://cdn.example.com/feed.jpg',
++  likeCount: 10,
++  indexedAt: NOW,
++  viewer: {},
++  labels: [],
++}
++
++const notif = (reason: string, author: any, extra: any = {}) => ({
++  uri: `at://${author.did}/app.bsky.feed.like/3kn${reason}`,
++  cid: CID,
++  author,
++  reason,
++  isRead: false,
++  indexedAt: NOW,
++  record: {$type: 'app.bsky.feed.like', subject: {uri: `at://${DID}/app.bsky.feed.post/3kv6y00000003`, cid: CID}, createdAt: NOW},
++  ...extra,
++  labels: [],
++})
++
++const handlers: Record<string, (params: URLSearchParams, body: any) => any> = {
++  'com.atproto.server.getSession': () => ({handle: 'alice.test', did: DID, email: 'alice@example.com', emailConfirmed: true, active: true}),
++  'com.atproto.server.describeServer': () => ({did: 'did:web:bsky.social', availableUserDomains: ['.bsky.social'], inviteCodeRequired: false, links: {}}),
++  'app.bsky.actor.getPreferences': () => ({
++    preferences: [
++      {$type: 'app.bsky.actor.defs#savedFeedsPrefV2', items: [{id: 'f1', type: 'timeline', value: 'following', pinned: true}]},
++      {$type: 'app.bsky.actor.defs#adultContentPref', enabled: false},
++      {$type: 'app.bsky.actor.defs#personalDetailsPref', birthDate: '1990-01-01T00:00:00.000Z'},
++    ],
++  }),
++  'app.bsky.actor.getProfile': p => profile(p.get('actor') === DID || p.get('actor') === 'alice.test' ? alice : bob),
++  'app.bsky.actor.getProfiles': p => ({profiles: p.getAll('actors').map(a => profile(a === DID ? alice : bob))}),
++  'app.bsky.feed.getTimeline': () => ({feed: posts().map(post => ({post})), cursor: undefined}),
++  'app.bsky.feed.getAuthorFeed': () => ({feed: posts().map(post => ({post}))}),
++  'app.bsky.feed.getFeed': () => ({feed: posts().map(post => ({post}))}),
++  'app.bsky.feed.getActorLikes': () => ({feed: []}),
++  'app.bsky.feed.getFeedGenerators': () => ({feeds: [feedGen]}),
++  'app.bsky.feed.getFeedGenerator': () => ({view: feedGen, isOnline: true, isValid: true}),
++  'app.bsky.feed.getPostThread': () => ({thread: {$type: 'app.bsky.feed.defs#threadViewPost', post: posts()[0], replies: []}}),
++  'app.bsky.unspecced.getPostThreadV2': p => {
++    const rkey = (p.get('anchor') ?? '').split('/').pop()
++    const anchor = posts().find(x => x.uri.endsWith('/' + rkey)) ?? posts()[0]!
++    return {
++    thread: [
++      {uri: anchor.uri, depth: 0, value: {$type: 'app.bsky.unspecced.defs#threadItemPost', post: anchor, moreParents: false, moreReplies: 0, opThread: false, hiddenByThreadgate: false, mutedByViewer: false}},
++    ],
++    hasOtherReplies: false,
++  }},
++  'app.bsky.notification.listNotifications': () => ({
++    notifications: [notif('like', bob), notif('follow', bob, {record: {$type: 'app.bsky.graph.follow', subject: DID, createdAt: NOW}})],
++    seenAt: NOW,
++    priority: false,
++  }),
++  'app.bsky.notification.getUnreadCount': () => ({count: 2}),
++  'app.bsky.notification.getPreferences': () => ({preferences: {}}),
++  'app.bsky.graph.getLists': () => ({lists: []}),
++  'app.bsky.graph.getFollows': () => ({subject: alice, follows: [bob]}),
++  'app.bsky.graph.getFollowers': () => ({subject: alice, followers: [bob]}),
++  'app.bsky.graph.getStarterPacks': () => ({starterPacks: []}),
++  'app.bsky.graph.getActorStarterPacks': () => ({starterPacks: []}),
++  'app.bsky.graph.getSuggestedFollowsByActor': () => ({suggestions: []}),
++  'app.bsky.graph.getKnownFollowers': () => ({subject: bob, followers: []}),
++  'app.bsky.actor.getSuggestions': () => ({actors: [bob]}),
++  'app.bsky.feed.getSuggestedFeeds': () => ({feeds: [feedGen]}),
++  'app.bsky.unspecced.getPopularFeedGenerators': () => ({feeds: [feedGen]}),
++  'app.bsky.labeler.getServices': () => ({views: []}),
++  'chat.bsky.convo.listConvos': () => ({convos: []}),
++  'chat.bsky.convo.getLog': () => ({logs: []}),
++  'chat.bsky.actor.getActorMetadata': () => ({day: {messagesSent: 0, messagesReceived: 0, conversationsStarted: 0}, month: {messagesSent: 0, messagesReceived: 0, conversationsStarted: 0}, all: {messagesSent: 0, messagesReceived: 0, conversationsStarted: 0}}),
++  'com.atproto.server.listAppPasswords': () => ({passwords: [{name: 'My client', createdAt: NOW}]}),
++  'app.bsky.ageassurance.getState': () => ({state: {status: 'assured', lastInitiatedAt: NOW}, metadata: {}}),
++  'app.bsky.unspecced.getConfig': () => ({checkEmailConfirmed: false}),
++  'app.bsky.unspecced.getTrends': () => ({trends: []}),
++  'com.atproto.identity.resolveHandle': () => ({did: OTHER}),
++  'chat.bsky.notification.getPreferences': () => ({preferences: {chat: {include: 'all', push: true}, chatRequest: {include: 'all', push: true}}}),
++  'chat.bsky.convo.getConvoAvailability': () => ({canChat: true}),
++  'chat.bsky.convo.getUnreadCounts': () => ({unreadAcceptedConvos: 0, unreadRequestConvos: 0}),
++  'app.bsky.contact.getSyncStatus': () => ({}),
++  'app.bsky.bookmark.getBookmarks': () => ({bookmarks: []}),
++  'app.bsky.feed.searchPostsV2': () => ({posts: posts()}),
++  'app.bsky.feed.searchPosts': () => ({posts: posts()}),
++  'app.bsky.actor.searchActors': () => ({actors: [bob]}),
++  'app.bsky.actor.searchActorsTypeahead': () => ({actors: [bob]}),
++  'app.bsky.feed.getLikes': () => ({uri: posts()[0]!.uri, likes: [{actor: bob, createdAt: NOW, indexedAt: NOW}]}),
++  'app.bsky.feed.getRepostedBy': () => ({uri: posts()[0]!.uri, repostedBy: [bob]}),
++  'app.bsky.feed.getPosts': () => ({posts: posts()}),
++  'app.bsky.graph.getMutes': () => ({mutes: []}),
++  'app.bsky.graph.getBlocks': () => ({blocks: []}),
++  'app.bsky.graph.getListMutes': () => ({lists: []}),
++  'app.bsky.graph.getListBlocks': () => ({lists: []}),
++  'app.bsky.actor.putPreferences': () => ({}),
++  'app.bsky.unspecced.getSuggestedUsersForExplore': () => ({actors: [bob]}),
++  'app.bsky.unspecced.getSuggestedStarterPacks': () => ({starterPacks: []}),
++  'app.bsky.unspecced.getSuggestedFeeds': () => ({feeds: [feedGen]}),
++  'app.bsky.notification.getGroupedNotifications': () => ({notifications: [], seenAt: NOW}),
++  'app.bsky.ageassurance.getConfig': () => ({regions: []}),
++}
++
++export const unknownCalls = new Map<string, number>()
++
++export function installFetch() {
++  global.fetch = jest.fn(async (input: any, init?: any) => {
++    const url = new URL(typeof input === 'string' ? input : input.url ?? String(input))
++    const m = /\/xrpc\/([\w.]+)/.exec(url.pathname)
++    const json = (status: number, body: any) =>
++      new Response(JSON.stringify(body), {status, headers: {'content-type': 'application/json'}})
++    if (!m) {
++      unknownCalls.set(url.host + url.pathname, (unknownCalls.get(url.host + url.pathname) ?? 0) + 1)
++      return json(404, {error: 'NotFound'})
++    }
++    const nsid = m[1]!
++    const h = handlers[nsid]
++    if (!h) {
++      unknownCalls.set(nsid, (unknownCalls.get(nsid) ?? 0) + 1)
++      return json(501, {error: 'MethodNotImplemented', message: `fake backend: ${nsid}`})
++    }
++    let body
++    try {
++      body = init?.body ? JSON.parse(init.body) : undefined
++    } catch {}
++    return json(200, h(url.searchParams, body))
++  }) as any
++}
+diff --git a/__v6y__/lib.tsx b/__v6y__/lib.tsx
+new file mode 100644
+index 0000000..bed6309
+--- /dev/null
++++ b/__v6y__/lib.tsx
+@@ -0,0 +1,162 @@
++/* LOCAL ONLY (v6y field test): helpers to drive the real app and record v6y captures. */
++import fs from 'fs'
++import path from 'path'
++import {StyleSheet} from 'react-native'
++import {act, create, type ReactTestRenderer} from 'react-test-renderer'
++import {V6yProvider, capture, configure} from '@v6y/react-native'
++
++export const RESULTS = process.env.V6Y_RESULTS ?? '/var/home/matthew/code/v6y-field/results'
++
++/** Jest has no layout engine: frames only from explicit numeric width/height (as in the v6y example). */
++const measureFromStyle = async (stateNode: any) => {
++  const style = StyleSheet.flatten(stateNode?.props?.style) ?? {}
++  const width = style.width ?? style.minWidth
++  const height = style.height ?? style.minHeight
++  return typeof width === 'number' && typeof height === 'number'
++    ? {x: 0, y: 0, width, height}
++    : undefined
++}
++
++/** V6Y_DS=1: tell v6y which files are Bluesky's shared components, and its sheet host. */
++const DS_CONFIG = {
++  designSystem: ['src/components/**', 'src/view/com/util/**', 'src/lib/custom-animations/**', 'src/alf/**'],
++  hostTypes: {modal: ['BottomSheet']},
++}
++configure(
++  {extends: 'strict', ...(process.env.V6Y_DS ? DS_CONFIG : {})} as any,
++  {collect: {measure: measureFromStyle}, report: false, log: false, autoCapture: false},
++)
++
++export const wait = (ms: number) =>
++  act(async () => {
++    await new Promise(res => setTimeout(res, ms))
++  })
++
++/** Fake layout + image load so the Splash screen lets the app through. */
++export async function fireLayoutAndLoad(r: ReactTestRenderer) {
++  await act(async () => {
++    for (const n of r.root.findAll((n: any) => typeof n.props.onLayout === 'function')) {
++      try {
++        n.props.onLayout({nativeEvent: {layout: {x: 0, y: 0, width: 390, height: 844}}})
++      } catch {}
++    }
++    for (const n of r.root.findAll((n: any) => typeof n.props.onLoadEnd === 'function')) {
++      try {
++        n.props.onLoadEnd()
++      } catch {}
++    }
++  })
++}
++
++export async function settle(r: ReactTestRenderer, rounds = 6) {
++  for (let i = 0; i < rounds; i++) {
++    await fireLayoutAndLoad(r)
++    await wait(150)
++  }
++}
++
++/** Host refs: RN 0.88 host instances expose DOM-ish APIs the app calls during layout. */
++function createNodeMock() {
++  const rect = {x: 0, y: 0, top: 0, left: 0, right: 390, bottom: 44, width: 390, height: 44}
++  return {
++    getBoundingClientRect: () => rect,
++    measure: (cb: any) => cb(0, 0, 390, 44, 0, 0),
++    measureInWindow: (cb: any) => cb(0, 0, 390, 44),
++    measureLayout: (_n: any, cb: any) => cb(0, 0, 390, 44),
++    focus: () => {},
++    blur: () => {},
++    setNativeProps: () => {},
++    scrollTo: () => {},
++    scrollToOffset: () => {},
++    scrollToIndex: () => {},
++    scrollToEnd: () => {},
++    getScrollableNode: () => null,
++    addEventListener: () => {},
++    removeEventListener: () => {},
++  }
++}
++
++export async function renderApp(): Promise<ReactTestRenderer> {
++  const App = require('#/App').default
++  let r!: ReactTestRenderer
++  await act(async () => {
++    r = create(
++      <V6yProvider>
++        <App />
++      </V6yProvider>,
++      {createNodeMock},
++    )
++  })
++  await settle(r, 10)
++  return r
++}
++
++/** Press the (last mounted, i.e. topmost) element with this accessibility label / testID. */
++export async function press(r: ReactTestRenderer, labelOrId: string | RegExp) {
++  const match = (v: unknown) =>
++    typeof v === 'string' && (typeof labelOrId === 'string' ? v === labelOrId : labelOrId.test(v))
++  const nodes = r.root.findAll(
++    (n: any) =>
++      typeof n.props.onPress === 'function' &&
++      (match(n.props.accessibilityLabel) || match(n.props['aria-label']) || match(n.props.testID)),
++  )
++  const isHiddenNode = (n: any) => {
++    for (let p = n; p; p = p.parent) {
++      const pr = p.props ?? {}
++      if (pr.accessibilityElementsHidden || pr['aria-hidden'] === true) return true
++      if (pr.importantForAccessibility === 'no-hide-descendants') return true
++      if (typeof p.type === 'string' && p.type === 'RNSScreen' && pr.activityState === 0) return true
++    }
++    return false
++  }
++  const visible = nodes.filter(n => !isHiddenNode(n))
++  if (!visible.length) throw new Error(`nothing visible+pressable labelled ${labelOrId} (${nodes.length} hidden)`)
++  const target = visible[visible.length - 1]!
++  await act(async () => {
++    target.props.onPress({nativeEvent: {}, preventDefault() {}, stopPropagation() {}})
++  })
++  await settle(r, 4)
++}
++
++export interface CaptureRecord {
++  name: string
++  ok: boolean
++  error?: string
++  issues?: number
++}
++export const manifest: CaptureRecord[] = []
++
++export async function record(name: string) {
++  const report = await capture(name)
++  if (!report) throw new Error(`no report for ${name}`)
++  fs.mkdirSync(RESULTS, {recursive: true})
++  const file = name.replace(/[^\w]+/g, '_').replace(/^_|_$/g, '') + '.json'
++  fs.writeFileSync(path.join(RESULTS, file), JSON.stringify(report, null, 1))
++  manifest.push({name, ok: true, issues: report.issues.length})
++  return report
++}
++
++export async function unmount(r: ReactTestRenderer) {
++  try {
++    await act(async () => r.unmount())
++  } catch (e) {
++    // Teardown errors (animations, timers) don't affect captures already taken.
++  }
++  await wait(50)
++}
++
++/** Emulate the native bottom sheet reporting "closed" (no native side in Jest). */
++export async function closeSheets(r: ReactTestRenderer) {
++  const sheets = r.root.findAll(
++    (n: any) => n.type === 'BottomSheet' && typeof n.props.onStateChange === 'function',
++  )
++  await act(async () => {
++    for (const s of sheets) {
++      try {
++        s.props.onStateChange({nativeEvent: {state: 'closed'}})
++      } catch {}
++    }
++  })
++  await settle(r, 3)
++  return sheets.length
++}
+diff --git a/__v6y__/loggedIn.test.tsx b/__v6y__/loggedIn.test.tsx
+new file mode 100644
+index 0000000..c355c67
+--- /dev/null
++++ b/__v6y__/loggedIn.test.tsx
+@@ -0,0 +1,131 @@
++import fs from 'fs'
++import {act} from 'react-test-renderer'
++
++import {DID, installFetch, seedSession, unknownCalls} from './fakeBackend'
++import {closeSheets, manifest, press, record, RESULTS, renderApp, settle, unmount} from './lib'
++
++jest.setTimeout(600000)
++
++beforeAll(async () => {
++  installFetch()
++  await seedSession()
++})
++
++const BOB_POST = {name: 'bob.test', rkey: '3kv6y00000000'}
++
++/** [capture name, route, params] - every route reachable from the logged-in shell that renders offline. */
++const ROUTES: Array<[string, string, object?]> = [
++  ['Search', 'tab:Search'],
++  ['Notifications', 'tab:Notifications'],
++  ['Messages (inbox)', 'tab:Messages'],
++  ['Home again', 'tab:Home'],
++  ['Profile (own)', 'Profile', {name: DID}],
++  ['Profile (other)', 'Profile', {name: 'bob.test'}],
++  ['ProfileFollowers', 'ProfileFollowers', {name: 'alice.test'}],
++  ['ProfileFollows', 'ProfileFollows', {name: 'alice.test'}],
++  ['PostThread', 'PostThread', BOB_POST],
++  ['PostLikedBy', 'PostLikedBy', BOB_POST],
++  ['PostThread (image post)', 'PostThread', {name: 'bob.test', rkey: '3kv6y00000001'}],
++  ['PostThread (link card)', 'PostThread', {name: 'alice.test', rkey: '3kv6y00000002'}],
++  ['Feeds', 'Feeds'],
++  ['CustomFeed', 'CustomFeed', {name: 'bob.test', rkey: 'cats'}],
++  ['SavedFeeds', 'SavedFeeds'],
++  ['Lists', 'Lists'],
++  ['Bookmarks', 'Bookmarks'],
++  ['Hashtag', 'Hashtag', {tag: 'a11y'}],
++  ['Settings', 'Settings'],
++  ['AccountSettings', 'AccountSettings'],
++  ['PrivacyAndSecuritySettings', 'PrivacyAndSecuritySettings'],
++  ['ActivityPrivacySettings', 'ActivityPrivacySettings'],
++  ['Moderation', 'Moderation'],
++  ['ModerationMutedAccounts', 'ModerationMutedAccounts'],
++  ['ModerationBlockedAccounts', 'ModerationBlockedAccounts'],
++  ['ModerationModlists', 'ModerationModlists'],
++  ['ModerationInteractionSettings', 'ModerationInteractionSettings'],
++  ['NotificationSettings', 'NotificationSettings'],
++  ['ContentAndMediaSettings', 'ContentAndMediaSettings'],
++  ['PreferencesFollowingFeed', 'PreferencesFollowingFeed'],
++  ['PreferencesThreads', 'PreferencesThreads'],
++  ['PreferencesExternalEmbeds', 'PreferencesExternalEmbeds'],
++  ['AccessibilitySettings', 'AccessibilitySettings'],
++  ['AppearanceSettings', 'AppearanceSettings'],
++  ['LanguageSettings', 'LanguageSettings'],
++  ['AboutSettings', 'AboutSettings'],
++  ['AppPasswords', 'AppPasswords'],
++  ['InterestsSettings', 'InterestsSettings'],
++  ['FindContactsSettings', 'FindContactsSettings'],
++  ['BetaFeaturesSettings', 'BetaFeaturesSettings'],
++  ['MessagesSettings', 'MessagesSettings'],
++  ['Support', 'Support'],
++  ['TermsOfService', 'TermsOfService'],
++  ['CommunityGuidelines', 'CommunityGuidelines'],
++  ['NotFound', 'NotFound'],
++  ['Debug (Storybook)', 'Debug'],
++]
++
++/** Error-boundary text among what v6y considered visible (unfocused screens excluded). */
++function crashText(rep: any): string | undefined {
++  const texts: string[] = []
++  const walk = (n: any) => {
++    if (n.hidden) return
++    if (n.text) texts.push(n.text)
++    n.children.forEach(walk)
++  }
++  walk(rep.snapshot.root)
++  const i = texts.findIndex(t => /There was an unexpected issue|Something went wrong/.test(t))
++  return i >= 0 ? texts.slice(i, i + 3).join(' | ') : undefined
++}
++
++it('logged-in screens', async () => {
++  const r = await renderApp()
++  await settle(r, 6)
++  // A real NUX sheet opens on first launch; capture it, then close it like the user would.
++  await record('NUX sheet over Home (InviteFriendsAnnouncement)')
++  await closeSheets(r)
++  await record('Home (following feed)')
++
++  const {navigate, resetToTab} = require('#/Navigation')
++  for (const [name, route, params] of ROUTES) {
++    try {
++      await act(async () => {
++        if (route.startsWith('tab:')) resetToTab(route.slice(4))
++        else void navigate({name: route, params})
++      })
++      await settle(r, 5)
++      await closeSheets(r)
++      const rep = await record(name)
++      const crash = crashText(rep)
++      if (crash) {
++        manifest[manifest.length - 1]!.ok = false
++        manifest[manifest.length - 1]!.error = 'error boundary: ' + crash
++      }
++      void rep
++    } catch (e: any) {
++      manifest.push({name, ok: false, error: String(e?.message ?? e).slice(0, 300)})
++    }
++  }
++  // Overlays opened from the home feed.
++  const overlays: Array<[string, string | RegExp]> = [
++    ['Post options menu (sheet)', 'Open post options menu'],
++    ['Share menu (sheet)', 'Open share menu'],
++    ['Composer', 'New post'],
++  ]
++  for (const [name, label] of overlays) {
++    try {
++      await act(async () => {
++        resetToTab('Home')
++      })
++      await closeSheets(r)
++      await press(r, label)
++      await record(name)
++      await closeSheets(r)
++    } catch (e: any) {
++      manifest.push({name, ok: false, error: String(e?.message ?? e).slice(0, 300)})
++    }
++  }
++  await unmount(r)
++  fs.writeFileSync(
++    `${RESULTS}/_manifest.loggedIn.json`,
++    JSON.stringify({manifest, unknownXrpc: [...unknownCalls.entries()]}, null, 1),
++  )
++})
+diff --git a/__v6y__/loggedOut.test.tsx b/__v6y__/loggedOut.test.tsx
+new file mode 100644
+index 0000000..142802f
+--- /dev/null
++++ b/__v6y__/loggedOut.test.tsx
+@@ -0,0 +1,21 @@
++import {act} from 'react-test-renderer'
++import {press, record, renderApp, unmount} from './lib'
++
++jest.setTimeout(120000)
++
++it('logged-out flows', async () => {
++  const r = await renderApp()
++  await record('LoggedOut Home (landing)')
++
++  await press(r, 'signInButton')
++  await record('Login: sign-in form')
++
++  await press(r, /Forgot/)
++  await record('Login: forgot password')
++  await unmount(r)
++
++  const r2 = await renderApp()
++  await press(r2, 'createAccountButton')
++  await record('Signup: step 1 (info)')
++  await unmount(r2)
++})
+diff --git a/__v6y__/setup.ts b/__v6y__/setup.ts
+new file mode 100644
+index 0000000..320c0e7
+--- /dev/null
++++ b/__v6y__/setup.ts
+@@ -0,0 +1,129 @@
++/* LOCAL ONLY (v6y field test): extra mocks needed to render real screens. */
++
++// The app's jestSetup replaces expo-modules-core with 3 functions; real screens
++// import modules (expo-haptics, ...) that need more of its API.
++/** A native-module stand-in: any property is a callable, constructible no-op. */
++function stubModule(): any {
++  return new Proxy(function () {}, {
++    get: (_t, k) =>
++      k === 'then' ? undefined : typeof k === 'string' && k.endsWith('Async') ? async () => ({}) : stubModule(),
++    apply: () => undefined,
++    construct: () => stubModule(),
++  })
++}
++;(globalThis as any).__v6yStubModule = stubModule
++
++jest.mock('expo-modules-core', () => {
++  const actual = jest.requireActual('expo-modules-core')
++  return {
++    ...actual,
++    requireNativeModule: (name: string) => {
++      if (name === 'ExpoPlatformInfo') return {getIsReducedMotionEnabled: () => false}
++      if (name === 'BottomSheet') return {dismissAll: () => {}}
++      return (globalThis as any).expo?.modules?.[name] ?? (globalThis as any).__v6yStubModule()
++    },
++    requireOptionalNativeModule: (name: string) => (globalThis as any).expo?.modules?.[name] ?? null,
++    // Render native views as host elements (like RN's own Jest mocks) so their children,
++    // e.g. the composer's TextInput inside expo-paste-input, are not swallowed.
++    requireNativeViewManager: (name: string) => {
++      const {createElement} = require('react')
++      const C = (props: any) => createElement(name, props, props.children)
++      C.displayName = name
++      return C
++    },
++    createPermissionHook: () => () => [true],
++  }
++})
++
++jest.mock('expo-asset', () => {
++  const asset = {uri: 'file://asset', localUri: 'file://asset', width: 1, height: 1, downloadAsync: async () => asset}
++  return {Asset: {fromModule: () => asset, loadAsync: async () => [asset]}, useAssets: () => [[asset]]}
++})
++
++jest.mock('react-native-keyboard-controller', () => require('react-native-keyboard-controller/jest'))
++
++// RNGH asks worklets for the UI runtime, which the JS worklets build refuses.
++jest.mock('react-native-worklets', () => ({
++  ...jest.requireActual('react-native-worklets'),
++  getUIRuntimeHolder: () => ({}),
++}))
++
++// Same shape as the app's own useOTAUpdates.test.ts mock.
++jest.mock('expo-updates', () => ({
++  checkForUpdateAsync: jest.fn(async () => ({isAvailable: false})),
++  fetchUpdateAsync: jest.fn(),
++  isEnabled: false,
++  channel: 'production',
++  reloadAsync: jest.fn(),
++  setExtraParamAsync: jest.fn(),
++  UpdateCheckResultNotAvailableReason: {NO_UPDATE_AVAILABLE_ON_SERVER: 'x', UPDATE_PREVIOUSLY_FAILED: 'y'},
++  useUpdates: jest.fn(() => ({currentlyRunning: {}, isUpdateAvailable: false, isUpdatePending: false})),
++}))
++
++// The app's jestSetup mock lacks SafeAreaInsetsContext etc.; use the library's own mock.
++jest.mock('react-native-safe-area-context', () => require('react-native-safe-area-context/jest/mock').default)
++
++jest.mock('expo-notifications', () => {
++  const sub = {remove: () => {}}
++  return {
++    AndroidImportance: {}, AndroidNotificationVisibility: {}, DEFAULT: 'default',
++    addNotificationResponseReceivedListener: () => sub, addPushTokenListener: () => sub,
++    addNotificationReceivedListener: () => sub,
++    clearLastNotificationResponse: () => {}, dismissAllNotificationsAsync: async () => {},
++    getDevicePushTokenAsync: async () => ({type: 'ios', data: 'x'}),
++    getLastNotificationResponse: () => null, getLastNotificationResponseAsync: async () => null,
++    getPermissionsAsync: async () => ({granted: false, status: 'undetermined', canAskAgain: true}),
++    requestPermissionsAsync: async () => ({granted: false, status: 'denied'}),
++    setNotificationChannelAsync: async () => {}, setNotificationChannelGroupAsync: async () => {},
++    setNotificationHandler: () => {}, getBadgeCountAsync: async () => 0, setBadgeCountAsync: async () => true,
++    useLastNotificationResponse: () => null,
++  }
++})
++;(globalThis as any).requestIdleCallback ??= (cb: () => void) => setTimeout(cb, 1)
++;(globalThis as any).cancelIdleCallback ??= (id: any) => clearTimeout(id)
++
++// The app's jestSetup maps NativeEventEmitter to Node's EventEmitter, whose
++// addListener returns the emitter, not a subscription with remove().
++jest.mock('react-native/Libraries/EventEmitter/NativeEventEmitter', () => {
++  const {EventEmitter} = require('events')
++  class NativeEventEmitter extends EventEmitter {
++    addListener(event: string, fn: (...a: any[]) => void) {
++      super.addListener(event, fn)
++      return {remove: () => this.removeListener(event, fn)}
++    }
++    removeAllListeners(event?: string) {
++      super.removeAllListeners(event)
++      return this
++    }
++    listenerCount(event: string) {
++      return super.listenerCount(event)
++    }
++  }
++  return {__esModule: true, default: NativeEventEmitter}
++})
++
++// The app's root __mocks__/multiformats stubs CID out entirely; real responses need it.
++jest.mock('multiformats/cid', () => jest.requireActual('multiformats/cid'))
++jest.mock('multiformats/hashes/hasher', () => jest.requireActual('multiformats/hashes/hasher'))
++
++jest.mock('expo-camera', () => ({
++  Camera: {useCameraPermissions: jest.fn(() => [{granted: false}, jest.fn()])},
++  CameraView: () => null,
++  useCameraPermissions: jest.fn(() => [{granted: false}, jest.fn()]),
++}))
++
++// RN 0.88 host instances have DOM-like getBoundingClientRect; the Jest ScrollView mock doesn't.
++{
++  const RN = require('react-native')
++  for (const C of [RN.ScrollView, RN.TextInput, RN.FlatList, RN.View, RN.Text, RN.Image, RN.TouchableOpacity, RN.TouchableHighlight]) {
++    if (C?.prototype && !C.prototype.getBoundingClientRect) {
++      C.prototype.getBoundingClientRect = () => ({x: 0, y: 0, top: 0, left: 0, right: 390, bottom: 44, width: 390, height: 44})
++    }
++  }
++}
++
++global.fetch = jest.fn(() => Promise.reject(new Error('offline (v6y field test)'))) as any
++
++// react-native-worklets' Jest rAF mock schedules setTimeout(0) jobs; let them
++// drain before Jest tears the environment down, or the worker crashes.
++afterAll(() => new Promise(r => setTimeout(r, 300)))
+diff --git a/babel.config.js b/babel.config.js
+index 8498650..4142436 100644
+--- a/babel.config.js
++++ b/babel.config.js
+@@ -106,6 +106,10 @@ module.exports = function (api) {
+ 
+       // cannot use `env` field because it will put them after
+       // the `react-native-worklets/plugin` plugin
++      // LOCAL ONLY (v6y field test): stamp JSX with file:line for v6y.
++      ...(api.env('test') && process.env.V6Y
++        ? [['/var/home/matthew/code/v6y/packages/babel-plugin', {enabled: true}]]
++        : []),
+       ...(api.env('test')
+         ? [
+             '@babel/plugin-transform-class-static-block',
+diff --git a/jest.v6y.config.js b/jest.v6y.config.js
+new file mode 100644
+index 0000000..06bf477
+--- /dev/null
++++ b/jest.v6y.config.js
+@@ -0,0 +1,31 @@
++// LOCAL ONLY (v6y field test). Extends the app's own Jest config.
++const base = require('./package.json').jest
++const V6Y = '/var/home/matthew/code/v6y/packages'
++const NM = '<rootDir>/node_modules'
++
++// Extra node_modules that ship untranspiled ESM/TS and are hit when rendering real screens.
++const EXTRA_TRANSFORM = ['@bsky\\.app/.*', 'sonner-native']
++
++module.exports = {
++  ...base,
++  testMatch: ['<rootDir>/__v6y__/**/*.test.tsx'],
++  reporters: ['default'],
++  // Reanimated 4 / worklets ship a resolver that picks their JS (non-native) code under Jest.
++  resolver: 'react-native-reanimated/jest/resolver',
++  setupFilesAfterEnv: [...base.setupFilesAfterEnv, '<rootDir>/__v6y__/setup.ts'],
++  transformIgnorePatterns: base.transformIgnorePatterns.map(p =>
++    p.replace('node_modules/(?!(', `node_modules/(?!(${EXTRA_TRANSFORM.join('|')}|`),
++  ),
++  moduleNameMapper: {
++    ...base.moduleNameMapper,
++    // Node already has full Intl; the formatjs polyfills are ESM-only.
++    '^@formatjs/.*/polyfill.*$': '<rootDir>/__v6y__/empty.js',
++    '^@v6y/core$': `${V6Y}/core`,
++    '^@v6y/react-native$': `${V6Y}/react-native`,
++    // One React / React Native instance: the app's.
++    '^react$': `${NM}/react`,
++    '^react/(.*)$': `${NM}/react/$1`,
++    '^react-native$': `${NM}/react-native`,
++    '^@babel/runtime/(.*)$': `${NM}/@babel/runtime/$1`,
++  },
++}
